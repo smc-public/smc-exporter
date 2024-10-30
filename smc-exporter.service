@@ -1,0 +1,13 @@
+[Unit]
+Description=SMC Exporter
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=root
+Group=root
+Type=simple
+ExecStart=/usr/local/bin/smc-exporter
+
+[Install]
+WantedBy=multi-user.target
