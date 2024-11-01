@@ -16,3 +16,11 @@ systemctl start smc-exporter
 ```
 This will give you a systemd service (smc-exporter) with the exporter running on the default port, 2112. If you want to use a different port, you will need to override the systemd unit or modify the service file before copying with the flag `-port {portnumber}`. 
 
+## Metrics information
+Currently smc-exporter only collects metrics for HCA transceivers running in Infiniband or Ethernet mode. The following metrics are collected:
+- bias current
+- voltage
+- power Rx (for each lane)
+- power Tx (for each lane)
+- wavelength
+- transfer distance
