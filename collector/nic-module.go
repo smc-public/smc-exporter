@@ -123,7 +123,6 @@ func (n *NicModuleCollector) Collect(ch chan<- prometheus.Metric) {
 func (n *NicModuleCollector) UpdateMetrics() {
 	devices, _ := discoverMellanoxDevices()
 	for _, device := range devices {
-		getPhysdevs(device)
 		for _, physDev := range getPhysdevs(device) {
 			go n.runMlxlink(physDev)
 		}
