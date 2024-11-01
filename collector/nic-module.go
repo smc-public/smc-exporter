@@ -203,21 +203,6 @@ func (n *NicModuleCollector) runMlxlink(device string) {
 
 // Get netdev from ca
 func getNetdev(caName string) string {
-	// This is unreliable for bonds
-	//netdevPath := filepath.Join("/sys/class/infiniband", device, "device/net")
-	//netdevs, err := ioutil.ReadDir(netdevPath)
-	//if err != nil {
-	//	//fmt.Printf("Error reading netdev directory for %s: %v\n", device, err)
-	//	return ""
-	//}
-
-	//var netdevNames []string
-	//for _, netdev := range netdevs {
-	//	if netdev.IsDir() {
-	//		netdevNames = append(netdevNames, netdev.Name())
-	//	}
-	//}
-	//return netdevNames[0]
 	cmd := exec.Command("ibdev2netdev")
 	output, err := cmd.Output()
 	if err != nil {
