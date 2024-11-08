@@ -54,6 +54,7 @@ type NicModuleCollector struct {
 
 func NewNicModuleCollector(namespace string) *NicModuleCollector {
 	laneLabel := []string{"lane"}
+	speedLabel := []string{"speed"}
 	stdLabels := []string{"device", "serial", "hostname", "systemserial", "slot"}
 	return &NicModuleCollector{
 		biasCurrent: prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -96,7 +97,7 @@ func NewNicModuleCollector(namespace string) *NicModuleCollector {
 			Namespace: namespace,
 			Name:      "copper_attenuation_dB",
 			Help:      "Attenuation in dB per signal speed for copper cables",
-		}, stdLabels),
+		}, append(speedLabel, stdLabels...)),
 	}
 }
 
@@ -419,13 +420,12 @@ func (n *NicModuleCollector) parseOutput(output, kind, device string) {
 			}
 		} else if cableType == "copper" {
 			// Parse attenuation for copper
-			// This needs revisiting, might be wrong
 			if matches := attenuationRegex.FindStringSubmatch(line); matches != nil {
 				attenuationValues = parseFloats(matches[2])
 				attenuationSpeeds := parseSpeeds(matches[1])
 				for i, attenuationValue := range attenuationValues {
 					if i < len(attenuationSpeeds) {
-						n.attenuation.WithLabelValues(attenuationSpeeds[i], device, hostname).Set(attenuationValue)
+						n.attenuation.WithLabelValues(attenuationSpeeds[i], device, serial, hostname, systemserial, slot).Set(attenuationValue)
 					}
 				}
 			}
