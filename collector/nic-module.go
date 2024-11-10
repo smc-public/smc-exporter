@@ -207,7 +207,6 @@ func getNetdev(caName string) string {
 	output, err := cmd.Output()
 	if err != nil {
 		log.Errorf("Error getting netdevs:", err)
-		os.Exit(1)
 		return caName
 	}
 	lines := strings.Split(string(output), "\n")
