@@ -43,6 +43,9 @@ type SlotInfo struct {
 type NicModuleCollector struct {
 	CachedSlots []SlotInfo
 
+	state            *prometheus.GaugeVec
+	physicalState    *prometheus.GaugeVec
+	speed            *prometheus.GaugeVec
 	biasCurrent      *prometheus.GaugeVec
 	voltage          *prometheus.GaugeVec
 	wavelength       *prometheus.GaugeVec
@@ -57,6 +60,24 @@ func NewNicModuleCollector(namespace string) *NicModuleCollector {
 	speedLabel := []string{"speed"}
 	stdLabels := []string{"device", "serial", "hostname", "systemserial", "slot"}
 	return &NicModuleCollector{
+		state: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "state",
+			Help:      "State (0: Disable, 1: Port PLL Down, 2: Polling, 3: Active, 4: Close port, 5: Physical Linkup, 6: Sleep, 7: Rx disable, ...)",
+		}, append(stdLabels)),
+
+		physicalState: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "infiniband_physical_state",
+			Help:      "Infiniband physical state (0: Disabled, 1: Initializing, 2: Recover Config, 3: Config Test, 4: Wait Remote Test, 5: Wait Config Enhanced, 6: Config Idle, 7: LinkUp, ...)",
+		}, append(stdLabels)),
+
+		speed: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "link_speed_bps",
+			Help:      "Link speed in bps",
+		}, append(stdLabels)),
+
 		biasCurrent: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "optical_bias_current_mA",
@@ -102,6 +123,9 @@ func NewNicModuleCollector(namespace string) *NicModuleCollector {
 }
 
 func (n *NicModuleCollector) Describe(ch chan<- *prometheus.Desc) {
+	n.state.Describe(ch)
+	n.physicalState.Describe(ch)
+	n.speed.Describe(ch)
 	n.biasCurrent.Describe(ch)
 	n.voltage.Describe(ch)
 	n.wavelength.Describe(ch)
@@ -112,6 +136,9 @@ func (n *NicModuleCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (n *NicModuleCollector) Collect(ch chan<- prometheus.Metric) {
+	n.state.Collect(ch)
+	n.physicalState.Collect(ch)
+	n.speed.Collect(ch)
 	n.biasCurrent.Collect(ch)
 	n.voltage.Collect(ch)
 	n.wavelength.Collect(ch)
@@ -306,7 +333,7 @@ func getDevice2PciAddress(className string) map[string]string {
 			log.Debugf("Error reading device link for '%s': %s\n", device, err)
 			continue
 		}
-		
+
 		// The device path is a symlink to the device directory in /sys/devices/
 		// Extract the PCI address from the device path
 		// devicePath format is typically something like: /sys/devices/pci0000:00/0000:00:00.0
@@ -316,7 +343,7 @@ func getDevice2PciAddress(className string) map[string]string {
 			log.Errorf("Unexpected device path format for %s: %s\n", device, devicePath)
 			continue
 		}
-	
+
 		pciAddress := parts[len(parts)-1]
 		result[device] = pciAddress
 	}
@@ -368,13 +395,43 @@ func (n *NicModuleCollector) parseOutput(output, pciAddress string, device strin
 		hostname = "unknown"
 	}
 
+	// mlxlink uses ansi escape codes to highlight values
+	// remove them so we can concentrate on content
+	output = removeAnsiEscapeCodes(output)
+
 	scanner := bufio.NewScanner(strings.NewReader(output))
 	var cableType string
+	var (
+		state   float64
+		stateOK bool
+	)
+	var (
+		physicalState   float64
+		physicalStateOK bool
+	)
+	var (
+		speed   float64
+		speedOK bool
+	)
 	var serial string
 	var rxPowerValues, txPowerValues, biasCurrentValues, attenuationValues []float64
 	var voltageValue, wavelengthValue float64
-	var rxPowerRegex, txPowerRegex, biasCurrentRegex, voltageRegex, attenuationRegex, wavelengthRegex, serialRegex *regexp.Regexp
+	var (
+		stateRegex,
+		physicalStateRegex,
+		speedRegex,
+		rxPowerRegex,
+		txPowerRegex,
+		biasCurrentRegex,
+		voltageRegex,
+		attenuationRegex,
+		wavelengthRegex,
+		serialRegex *regexp.Regexp
+	)
 
+	stateRegex = regexp.MustCompile(`^State *: (.*)`)
+	physicalStateRegex = regexp.MustCompile(`^Physical state *: (.*)`)
+	speedRegex = regexp.MustCompile(`^Speed *: (.*)`)
 	rxPowerRegex = regexp.MustCompile(`Rx Power Current \[dBm\] *: ([\d\.,\-]+)`)
 	txPowerRegex = regexp.MustCompile(`Tx Power Current \[dBm\] *: ([\d\.,\-]+)`)
 	biasCurrentRegex = regexp.MustCompile(`Bias Current \[mA\] *: ([\d\.,\-]+)`)
@@ -392,6 +449,18 @@ func (n *NicModuleCollector) parseOutput(output, pciAddress string, device strin
 		}
 		if !utf8.ValidString(serial) {
 			serial = "unknown"
+		}
+
+		if matches := stateRegex.FindStringSubmatch(line); matches != nil {
+			state, stateOK = stateValue(matches[1])
+		}
+
+		if matches := physicalStateRegex.FindStringSubmatch(line); matches != nil {
+			physicalState, physicalStateOK = physicalStateValue(matches[1])
+		}
+
+		if matches := speedRegex.FindStringSubmatch(line); matches != nil {
+			speed, speedOK = gbps(matches[1])
 		}
 
 		if strings.Contains(line, "Cable Type") || strings.Contains(line, "Connector") {
@@ -444,6 +513,17 @@ func (n *NicModuleCollector) parseOutput(output, pciAddress string, device strin
 		}
 	}
 
+	// Export link metrics
+	if stateOK {
+		n.state.WithLabelValues(device, serial, hostname, systemserial, slot).Set(state)
+	}
+	if physicalStateOK {
+		n.physicalState.WithLabelValues(device, serial, hostname, systemserial, slot).Set(physicalState)
+	}
+	if speedOK {
+		n.speed.WithLabelValues(device, serial, hostname, systemserial, slot).Set(speed)
+	}
+
 	// Export optical metrics
 	for i, bias := range biasCurrentValues {
 		n.biasCurrent.WithLabelValues(fmt.Sprintf("%d", i+1), device, serial, hostname, systemserial, slot).Set(bias)
@@ -456,6 +536,118 @@ func (n *NicModuleCollector) parseOutput(output, pciAddress string, device strin
 	}
 	n.voltage.WithLabelValues(device, serial, hostname, systemserial, slot).Set(voltageValue)
 	n.wavelength.WithLabelValues(device, serial, hostname, systemserial, slot).Set(wavelengthValue)
+}
+
+func removeAnsiEscapeCodes(output string) string {
+	ansiEscapeCodeRegEx := regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")
+	return ansiEscapeCodeRegEx.ReplaceAllString(output, "")
+}
+
+func stateValue(stateName string) (float64, bool) {
+	var stateValues = map[string]float64{
+		"Disable":         0,
+		"Port PLL Down":   1,
+		"Polling":         2,
+		"Active":          3,
+		"Close port":      4,
+		"Physical LinkUp": 5,
+		"Sleep":           6,
+		"Rx disable":      7,
+		"Signal detect":   8,
+		"Receiver detect": 9,
+		"Sync peer":       10,
+		"Negotiation":     11,
+		"Training":        12,
+		"SubFSM active":   13,
+	}
+
+	if value, exists := stateValues[stateName]; exists {
+		return value, true
+	} else {
+		return -1, false
+	}
+}
+
+func physicalStateValue(physicalStateName string) (float64, bool) {
+	var physicalStateValues = map[string]float64{
+		"Disabled":                   0,
+		"Initializing":               1,
+		"Recover Config":             2,
+		"Config Test":                3,
+		"Wait Remote Test":           4,
+		"Wait Config Enhanced":       5,
+		"Config Idle":                6,
+		"LinkUp":                     7,
+		"ETH_AN_FSM_ENABLE":          10,
+		"ETH_AN_FSM_XMIT_DISABLE":    11,
+		"ETH_AN_FSM_ABILITY_DETECT":  12,
+		"ETH_AN_FSM_ACK_DETECT":      13,
+		"ETH_AN_FSM_COMPLETE_ACK":    14,
+		"ETH_AN_FSM_AN_GOOD_CHECK":   15,
+		"ETH_AN_FSM_NEXT_PAGE_WAIT":  17,
+		"ETH_AN_FSM_LINK_STAT_CHECK": 18,
+		"ETH_AN_FSM_EXTRA_TUNE":      9,
+		"ETH_AN_FSM_FIX_REVERSALS":   10,
+		"ETH_AN_FSM_IB_FAIL":         11,
+		"ETH_AN_FSM_POST_LOCK_TUNE":  12,
+	}
+
+	if value, exists := physicalStateValues[physicalStateName]; exists {
+		return value, true
+	} else {
+		return -1, false
+	}
+}
+
+func gbps(speed string) (float64, bool) {
+	var speed2Gbps = map[string]float64{
+		// IB
+		"IB-SDR":   10000000,
+		"IB-DDR":   20000000,
+		"IB-QDR":   40000000,
+		"IB-FDR10": 40000000,
+		"IB-FDR":   56000000,
+		"IB-EDR":   100000000,
+		"IB-HDR":   200000000,
+		"IB-NDR":   400000000,
+		"IB-XDR":   800000000,
+		// Eth
+		"BaseTx100M": 100000,
+		"BaseT1000M": 1000000,
+		"BaseT10M":   10000,
+		"CX":         1000000,
+		"KX":         1000000,
+		"CX4":        10000000,
+		"KX4":        10000000,
+		"BaseT10G":   10000000,
+		"10GbE":      10000000,
+		"20GbE":      20000000,
+		"25GbE":      25000000,
+		"40GbE":      40000000,
+		"50GbE":      50000000,
+		"56GbE":      56000000,
+		"100GbE":     100000000,
+		// Ext Eth
+		"100M": 100000,
+		"1G":   1000000,
+		"2.5G": 2500000,
+		"5G":   5000000,
+		"10G":  10000000,
+		"40G":  40000000,
+		"25G":  25000000,
+		"50G":  50000000,
+		"100G": 100000000,
+		"200G": 200000000,
+		"400G": 400000000,
+		"800G": 800000000,
+		"10M":  10000,
+	}
+
+	if value, exists := speed2Gbps[speed]; exists {
+		return value, true
+	} else {
+		return -1, false
+	}
 }
 
 func parseFloats(s string) []float64 {
