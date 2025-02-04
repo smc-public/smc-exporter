@@ -65,7 +65,7 @@ type NicModuleCollector struct {
 func NewNicModuleCollector(namespace string) *NicModuleCollector {
 	laneLabel := []string{"lane"}
 	speedLabel := []string{"speed"}
-	stdLabels := []string{"mode", "caname", "netdev", "serial", "hostname", "systemserial", "slot"}
+	stdLabels := []string{"mode", "caname", "netdev", "serial", "hostname", "product_serial", "slot"}
 	return &NicModuleCollector{
 		state: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
