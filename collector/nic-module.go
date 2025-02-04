@@ -40,6 +40,13 @@ type SlotInfo struct {
 	SlotNumber  string
 }
 
+type DeviceInfo struct {
+	pciAddress string
+	mode        string
+	caName     string
+	netDev      string
+}
+
 type NicModuleCollector struct {
 	CachedSlots []SlotInfo
 
@@ -58,7 +65,7 @@ type NicModuleCollector struct {
 func NewNicModuleCollector(namespace string) *NicModuleCollector {
 	laneLabel := []string{"lane"}
 	speedLabel := []string{"speed"}
-	stdLabels := []string{"device", "serial", "hostname", "systemserial", "slot"}
+	stdLabels := []string{"mode", "caname", "netdev", "serial", "hostname", "systemserial", "slot"}
 	return &NicModuleCollector{
 		state: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -149,11 +156,13 @@ func (n *NicModuleCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 func (n *NicModuleCollector) UpdateMetrics() {
-	pciAddresses, _ := discoverMellanoxDevices()
-	pciAddress2Device := getPciAddress2PhysicalDevice()
-	for _, pciAddress := range pciAddresses {
-		device := pciAddress2Device[pciAddress]
-		go n.runMlxlink(pciAddress, device)
+	devices, _ := discoverMellanoxDevices()
+	pciAddress2PhysicalDeviceInfo := getPciAddress2PhysicalDevice()
+	for _, device := range devices {
+		physicalDeviceInfo := pciAddress2PhysicalDeviceInfo[device.pciAddress]
+		device.caName = physicalDeviceInfo.caName
+		device.netDev = physicalDeviceInfo.netDev
+		go n.runMlxlink(device)
 	}
 }
 
@@ -192,8 +201,8 @@ func getBondedIbDevice2Slaves() map[string][]string {
 }
 
 // Discover Mellanox NICs using lspci
-func discoverMellanoxDevices() ([]string, error) {
-	var mellanoxDevices []string
+func discoverMellanoxDevices() ([]DeviceInfo, error) {
+	var mellanoxDevices []DeviceInfo
 	cmd := exec.Command("lspci", "-D")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -204,20 +213,22 @@ func discoverMellanoxDevices() ([]string, error) {
 	mellanoxDevicePattern := regexp.MustCompile(`(Infiniband|Ethernet).*Mellanox`)
 	for _, line := range lines {
 		if mellanoxDevicePattern.MatchString(line) {
-			pciAddress := strings.Fields(line)[0]
-			mellanoxDevices = append(mellanoxDevices, pciAddress)
+			deviceInfo := DeviceInfo{}
+			deviceInfo.pciAddress = strings.Fields(line)[0]
+			deviceInfo.mode = strings.ToLower((strings.Fields(line)[1]))
+			mellanoxDevices = append(mellanoxDevices, deviceInfo)
 		}
 	}
 	return mellanoxDevices, nil
 }
 
-func (n *NicModuleCollector) runMlxlink(pciAddress string, device string) {
-	cmd := exec.Command("mlxlink", "-d", pciAddress, "-m")
+func (n *NicModuleCollector) runMlxlink(device DeviceInfo) {
+	cmd := exec.Command("mlxlink", "-d", device.pciAddress, "-m")
 	output, err := cmd.CombinedOutput()
 	if err == nil {
-		n.parseOutput(string(output), pciAddress, device)
+		n.parseOutput(string(output), device)
 	} else {
-		log.Errorf("Error running mlxlink -d %s: %s\n", pciAddress, err)
+		log.Errorf("Error running mlxlink -d %s: %s\n", device.pciAddress, err)
 	}
 }
 
@@ -351,8 +362,8 @@ func getDevice2PciAddress(className string) map[string]string {
 }
 
 // Get a map of pci address to physical device
-func getPciAddress2PhysicalDevice() map[string]string {
-	result := make(map[string]string)
+func getPciAddress2PhysicalDevice() map[string]DeviceInfo {
+	result := make(map[string]DeviceInfo)
 	// get map of pci address to infiniband device from /sys/class/infinband/device links
 	ibDevice2PciAddress := getDevice2PciAddress("infiniband")
 	// get map of pci address to network device from /sys/class/net/device links
@@ -365,14 +376,22 @@ func getPciAddress2PhysicalDevice() map[string]string {
 			// Add slave devices
 			for _, slave := range slaves {
 				if slaveAddress, exists := netDevice2PciAddress[slave]; exists {
-					result[slaveAddress] = slave
+					deviceInfo := DeviceInfo{}
+					deviceInfo.pciAddress = slaveAddress
+					deviceInfo.caName = ibDevice
+					deviceInfo.netDev, _ = lookupKey(netDevice2PciAddress, slaveAddress)
+					result[slaveAddress] = deviceInfo
 				} else {
 					log.Errorf("No PCI Address found for: %s\n", slave)
 				}
 			}
 		} else {
 			// Add ib device
-			result[ibAddress] = ibDevice
+			deviceInfo := DeviceInfo{}
+			deviceInfo.pciAddress = ibAddress
+			deviceInfo.caName = ibDevice
+			deviceInfo.netDev, _ = lookupKey(netDevice2PciAddress, ibAddress)
+			result[ibAddress] = deviceInfo
 		}
 
 	}
@@ -380,13 +399,22 @@ func getPciAddress2PhysicalDevice() map[string]string {
 	return result
 }
 
+func lookupKey(lookupMap map[string]string, lookupValue string) (string, bool) {
+	for key, value := range lookupMap {
+		if value == lookupValue {
+			return key, true
+		}
+	}
+	return "", false
+}
+
 // Parse mlxlink data and set metrics
-func (n *NicModuleCollector) parseOutput(output, pciAddress string, device string) {
+func (n *NicModuleCollector) parseOutput(output string, device DeviceInfo) {
 	hostname, err := os.Hostname()
 	cmd := exec.Command("dmidecode", "-s", "system-serial-number")
 	out, _ := cmd.Output()
 	systemserial := strings.TrimSpace(string(out))
-	slot := n.matchMellanoxSlot(pciAddress)
+	slot := n.matchMellanoxSlot(device.pciAddress)
 	if !utf8.ValidString(slot) {
 		slot = "unknown"
 	}
@@ -506,7 +534,9 @@ func (n *NicModuleCollector) parseOutput(output, pciAddress string, device strin
 				attenuationSpeeds := parseSpeeds(matches[1])
 				for i, attenuationValue := range attenuationValues {
 					if i < len(attenuationSpeeds) {
-						n.attenuation.WithLabelValues(attenuationSpeeds[i], device, serial, hostname, systemserial, slot).Set(attenuationValue)
+						n.attenuation.WithLabelValues(
+							attenuationSpeeds[i], device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot,
+						).Set(attenuationValue)
 					}
 				}
 			}
@@ -515,27 +545,27 @@ func (n *NicModuleCollector) parseOutput(output, pciAddress string, device strin
 
 	// Export link metrics
 	if stateOK {
-		n.state.WithLabelValues(device, serial, hostname, systemserial, slot).Set(state)
+		n.state.WithLabelValues(device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot).Set(state)
 	}
 	if physicalStateOK {
-		n.physicalState.WithLabelValues(device, serial, hostname, systemserial, slot).Set(physicalState)
+		n.physicalState.WithLabelValues(device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot).Set(physicalState)
 	}
 	if speedOK {
-		n.speed.WithLabelValues(device, serial, hostname, systemserial, slot).Set(speed)
+		n.speed.WithLabelValues(device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot).Set(speed)
 	}
 
 	// Export optical metrics
 	for i, bias := range biasCurrentValues {
-		n.biasCurrent.WithLabelValues(fmt.Sprintf("%d", i+1), device, serial, hostname, systemserial, slot).Set(bias)
+		n.biasCurrent.WithLabelValues(fmt.Sprintf("%d", i+1), device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot).Set(bias)
 	}
 	for i, rx := range rxPowerValues {
-		n.rxPower.WithLabelValues(fmt.Sprintf("%d", i+1), device, serial, hostname, systemserial, slot).Set(rx)
+		n.rxPower.WithLabelValues(fmt.Sprintf("%d", i+1), device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot).Set(rx)
 	}
 	for i, tx := range txPowerValues {
-		n.txPower.WithLabelValues(fmt.Sprintf("%d", i+1), device, serial, hostname, systemserial, slot).Set(tx)
+		n.txPower.WithLabelValues(fmt.Sprintf("%d", i+1), device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot).Set(tx)
 	}
-	n.voltage.WithLabelValues(device, serial, hostname, systemserial, slot).Set(voltageValue)
-	n.wavelength.WithLabelValues(device, serial, hostname, systemserial, slot).Set(wavelengthValue)
+	n.voltage.WithLabelValues(device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot).Set(voltageValue)
+	n.wavelength.WithLabelValues(device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot).Set(wavelengthValue)
 }
 
 func removeAnsiEscapeCodes(output string) string {
