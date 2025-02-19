@@ -42,128 +42,228 @@ type SlotInfo struct {
 
 type DeviceInfo struct {
 	pciAddress string
-	mode        string
+	mode       string
 	caName     string
-	netDev      string
+	netDev     string
+}
+
+type PortMetrics struct {
+	mode           string
+	caname         string
+	netdev         string
+	serial         string
+	hostname       string
+	product_serial string
+	slot           string
+
+	state            float64
+	physicalState    float64
+	speed            float64
+	biasCurrent      []float64
+	voltage          float64
+	wavelength       float64
+	transferDistance float64
+	rxPower          []float64
+	txPower          []float64
+	attenuation      map[string]float64
 }
 
 type NicModuleCollector struct {
 	CachedSlots []SlotInfo
 
-	state            *prometheus.GaugeVec
-	physicalState    *prometheus.GaugeVec
-	speed            *prometheus.GaugeVec
-	biasCurrent      *prometheus.GaugeVec
-	voltage          *prometheus.GaugeVec
-	wavelength       *prometheus.GaugeVec
-	transferDistance *prometheus.GaugeVec
-	rxPower          *prometheus.GaugeVec
-	txPower          *prometheus.GaugeVec
-	attenuation      *prometheus.GaugeVec
+	cachedMetricsReads  chan readCachedMetricsRequest
+	cachedMetricsWrites chan []PortMetrics
+
+	stateDesc            *prometheus.Desc
+	physicalStateDesc    *prometheus.Desc
+	speedDesc            *prometheus.Desc
+	biasCurrentDesc      *prometheus.Desc
+	voltageDesc          *prometheus.Desc
+	wavelengthDesc       *prometheus.Desc
+	transferDistanceDesc *prometheus.Desc
+	rxPowerDesc          *prometheus.Desc
+	txPowerDesc          *prometheus.Desc
+	attenuationDesc      *prometheus.Desc
+}
+
+type readCachedMetricsRequest struct {
+	resp chan []PortMetrics
+}
+
+type runMlxlinkResponse struct {
+	error  bool
+	result PortMetrics
 }
 
 func NewNicModuleCollector(namespace string) *NicModuleCollector {
 	laneLabel := []string{"lane"}
 	speedLabel := []string{"speed"}
 	stdLabels := []string{"mode", "caname", "netdev", "serial", "hostname", "product_serial", "slot"}
-	return &NicModuleCollector{
-		state: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "state",
-			Help:      "State (0: Disable, 1: Port PLL Down, 2: Polling, 3: Active, 4: Close port, 5: Physical Linkup, 6: Sleep, 7: Rx disable, ...)",
-		}, append(stdLabels)),
+	collector := &NicModuleCollector{
+		cachedMetricsReads:  make(chan readCachedMetricsRequest),
+		cachedMetricsWrites: make(chan []PortMetrics),
 
-		physicalState: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "infiniband_physical_state",
-			Help:      "Infiniband physical state (0: Disabled, 1: Initializing, 2: Recover Config, 3: Config Test, 4: Wait Remote Test, 5: Wait Config Enhanced, 6: Config Idle, 7: LinkUp, ...)",
-		}, append(stdLabels)),
+		stateDesc: prometheus.NewDesc(
+			namespace+"_state",
+			"State (0: Disable, 1: Port PLL Down, 2: Polling, 3: Active, 4: Close port, 5: Physical Linkup, 6: Sleep, 7: Rx disable, ...)",
+			stdLabels,
+			nil,
+		),
 
-		speed: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "link_speed_bps",
-			Help:      "Link speed in bps",
-		}, append(stdLabels)),
+		physicalStateDesc: prometheus.NewDesc(
+			namespace+"_infiniband_physical_state",
+			"Infiniband physical state (0: Disabled, 1: Initializing, 2: Recover Config, 3: Config Test, 4: Wait Remote Test, 5: Wait Config Enhanced, 6: Config Idle, 7: LinkUp, ...)",
+			stdLabels,
+			nil,
+		),
 
-		biasCurrent: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "optical_bias_current_mA",
-			Help:      "Bias current in mA per lane for optical cables",
-		}, append(laneLabel, stdLabels...)),
+		speedDesc: prometheus.NewDesc(
+			namespace+"_link_speed_bps",
+			"Link speed in bps",
+			stdLabels,
+			nil,
+		),
 
-		voltage: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "optical_voltage_mV",
-			Help:      "Voltage in mV",
-		}, stdLabels),
+		biasCurrentDesc: prometheus.NewDesc(
+			namespace+"_optical_bias_current_mA",
+			"Bias current in mA per lane for optical cables",
+			append(laneLabel, stdLabels...),
+			nil,
+		),
 
-		wavelength: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "optical_wavelength_nm",
-			Help:      "Wavelength in nm",
-		}, stdLabels),
+		voltageDesc: prometheus.NewDesc(
+			namespace+"_optical_voltage_mV",
+			"Voltage in mV",
+			stdLabels,
+			nil,
+		),
 
-		transferDistance: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "optical_transfer_distance_m",
-			Help:      "Transfer distance in m",
-		}, stdLabels),
+		wavelengthDesc: prometheus.NewDesc(
+			namespace+"_optical_wavelength_nm",
+			"Wavelength in nm",
+			stdLabels,
+			nil,
+		),
 
-		rxPower: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "optical_rx_power_dBm",
-			Help:      "RX power in dBm per lane for optical cables",
-		}, append(laneLabel, stdLabels...)),
+		transferDistanceDesc: prometheus.NewDesc(
+			namespace+"_optical_transfer_distance_m",
+			"Transfer distance in m",
+			stdLabels,
+			nil,
+		),
 
-		txPower: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "optical_tx_power_dBm",
-			Help:      "TX power in dBm per lane for optical cables",
-		}, append(laneLabel, stdLabels...)),
+		rxPowerDesc: prometheus.NewDesc(
+			namespace+"_optical_rx_power_dBm",
+			"RX power in dBm per lane for optical cables",
+			append(laneLabel, stdLabels...),
+			nil,
+		),
 
-		attenuation: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "copper_attenuation_dB",
-			Help:      "Attenuation in dB per signal speed for copper cables",
-		}, append(speedLabel, stdLabels...)),
+		txPowerDesc: prometheus.NewDesc(
+			namespace+"_optical_tx_power_dBm",
+			"TX power in dBm per lane for optical cables",
+			append(laneLabel, stdLabels...),
+			nil,
+		),
+
+		attenuationDesc: prometheus.NewDesc(
+			namespace+"_copper_attenuation_dB",
+			"Attenuation in dB per signal speed for copper cables",
+			append(speedLabel, stdLabels...),
+			nil,
+		),
 	}
+	go collector.manageCachedMetricsAccess()
+	return collector
 }
 
 func (n *NicModuleCollector) Describe(ch chan<- *prometheus.Desc) {
-	n.state.Describe(ch)
-	n.physicalState.Describe(ch)
-	n.speed.Describe(ch)
-	n.biasCurrent.Describe(ch)
-	n.voltage.Describe(ch)
-	n.wavelength.Describe(ch)
-	n.transferDistance.Describe(ch)
-	n.rxPower.Describe(ch)
-	n.txPower.Describe(ch)
-	n.attenuation.Describe(ch)
+	ch <- n.stateDesc
+	ch <- n.physicalStateDesc
+	ch <- n.speedDesc
+	ch <- n.biasCurrentDesc
+	ch <- n.voltageDesc
+	ch <- n.wavelengthDesc
+	ch <- n.transferDistanceDesc
+	ch <- n.rxPowerDesc
+	ch <- n.txPowerDesc
+	ch <- n.attenuationDesc
 }
 
 func (n *NicModuleCollector) Collect(ch chan<- prometheus.Metric) {
-	n.state.Collect(ch)
-	n.physicalState.Collect(ch)
-	n.speed.Collect(ch)
-	n.biasCurrent.Collect(ch)
-	n.voltage.Collect(ch)
-	n.wavelength.Collect(ch)
-	n.transferDistance.Collect(ch)
-	n.rxPower.Collect(ch)
-	n.txPower.Collect(ch)
-	n.attenuation.Collect(ch)
+	cachedMetrics := n.getCachedMetrics()
+	for _, port := range cachedMetrics {
+		stdLabelValues := []string{port.mode, port.caname, port.netdev, port.serial, port.hostname, port.product_serial, port.slot}
+		ch <- prometheus.MustNewConstMetric(n.stateDesc, prometheus.GaugeValue, port.state, stdLabelValues...)
+		ch <- prometheus.MustNewConstMetric(n.physicalStateDesc, prometheus.GaugeValue, port.physicalState, stdLabelValues...)
+		ch <- prometheus.MustNewConstMetric(n.speedDesc, prometheus.GaugeValue, port.speed, stdLabelValues...)
+		for laneIdx, biasCurrentValue := range port.biasCurrent {
+			laneValue := []string{strconv.Itoa(laneIdx + 1)}
+			ch <- prometheus.MustNewConstMetric(n.biasCurrentDesc, prometheus.GaugeValue, biasCurrentValue, append(laneValue, stdLabelValues...)...)
+		}
+		ch <- prometheus.MustNewConstMetric(n.voltageDesc, prometheus.GaugeValue, port.voltage, stdLabelValues...)
+		ch <- prometheus.MustNewConstMetric(n.wavelengthDesc, prometheus.GaugeValue, port.wavelength, stdLabelValues...)
+		ch <- prometheus.MustNewConstMetric(n.transferDistanceDesc, prometheus.GaugeValue, port.transferDistance, stdLabelValues...)
+		for laneIdx, rxPowerValue := range port.rxPower {
+			laneValue := []string{strconv.Itoa(laneIdx + 1)}
+			ch <- prometheus.MustNewConstMetric(n.rxPowerDesc, prometheus.GaugeValue, rxPowerValue, append(laneValue, stdLabelValues...)...)
+		}
+		for laneIdx, txPowerValue := range port.txPower {
+			laneLabelValues := []string{strconv.Itoa(laneIdx + 1)}
+			ch <- prometheus.MustNewConstMetric(n.txPowerDesc, prometheus.GaugeValue, txPowerValue, append(laneLabelValues, stdLabelValues...)...)
+		}
+		for speedValue, attenuationValue := range port.attenuation {
+			speedLabelValues := []string{speedValue}
+			ch <- prometheus.MustNewConstMetric(n.attenuationDesc, prometheus.GaugeValue, attenuationValue, append(speedLabelValues, stdLabelValues...)...)
+		}
+	}
+}
+
+func (n *NicModuleCollector) getCachedMetrics() []PortMetrics {
+	request := readCachedMetricsRequest{
+		resp: make(chan []PortMetrics),
+	}
+	n.cachedMetricsReads <- request
+	cachedMetrics := <-request.resp
+	return cachedMetrics
+}
+
+func (n *NicModuleCollector) cacheMetrics(metrics []PortMetrics) {
+	n.cachedMetricsWrites <- metrics
+}
+
+func (n *NicModuleCollector) manageCachedMetricsAccess() {
+	var cachedMetrics []PortMetrics
+	for {
+		select {
+		case request := <-n.cachedMetricsReads:
+			request.resp <- cachedMetrics
+		case newValue := <-n.cachedMetricsWrites:
+			cachedMetrics = newValue
+		}
+	}
 }
 
 func (n *NicModuleCollector) UpdateMetrics() {
 	devices, _ := discoverMellanoxDevices()
 	pciAddress2PhysicalDeviceInfo := getPciAddress2PhysicalDevice()
+	responses := make(chan runMlxlinkResponse)
 	for _, device := range devices {
 		physicalDeviceInfo := pciAddress2PhysicalDeviceInfo[device.pciAddress]
 		device.caName = physicalDeviceInfo.caName
 		device.netDev = physicalDeviceInfo.netDev
-		go n.runMlxlink(device)
+		go n.runMlxlink(device, responses)
 	}
+	metrics := make([]PortMetrics, len(devices))
+	metricsIdx := 0
+	for i := 0; i < len(devices); i++ {
+		response := <-responses
+		if !response.error {
+			metrics[metricsIdx] = response.result
+			metricsIdx++
+		}
+	}
+	n.cacheMetrics(metrics)
 }
 
 func getBondedIbDevice2Slaves() map[string][]string {
@@ -222,13 +322,14 @@ func discoverMellanoxDevices() ([]DeviceInfo, error) {
 	return mellanoxDevices, nil
 }
 
-func (n *NicModuleCollector) runMlxlink(device DeviceInfo) {
+func (n *NicModuleCollector) runMlxlink(device DeviceInfo, resp chan runMlxlinkResponse) {
 	cmd := exec.Command("mlxlink", "-d", device.pciAddress, "-m")
 	output, err := cmd.CombinedOutput()
 	if err == nil {
-		n.parseOutput(string(output), device)
+		n.parseOutput(string(output), device, resp)
 	} else {
 		log.Errorf("Error running mlxlink -d %s: %s\n", device.pciAddress, err)
+		resp <- runMlxlinkResponse{true, PortMetrics{}}
 	}
 }
 
@@ -409,7 +510,13 @@ func lookupKey(lookupMap map[string]string, lookupValue string) (string, bool) {
 }
 
 // Parse mlxlink data and set metrics
-func (n *NicModuleCollector) parseOutput(output string, device DeviceInfo) {
+func (n *NicModuleCollector) parseOutput(output string, device DeviceInfo, resp chan runMlxlinkResponse) {
+	var metrics PortMetrics
+
+	metrics.mode = device.mode
+	metrics.caname = device.caName
+	metrics.netdev = device.netDev
+
 	hostname, err := os.Hostname()
 	cmd := exec.Command("dmidecode", "-s", "system-serial-number")
 	out, _ := cmd.Output()
@@ -422,6 +529,9 @@ func (n *NicModuleCollector) parseOutput(output string, device DeviceInfo) {
 		log.Errorf("Error getting hostname: %v\n", err)
 		hostname = "unknown"
 	}
+
+	metrics.hostname = hostname
+	metrics.product_serial = systemserial
 
 	// mlxlink uses ansi escape codes to highlight values
 	// remove them so we can concentrate on content
@@ -441,9 +551,7 @@ func (n *NicModuleCollector) parseOutput(output string, device DeviceInfo) {
 		speed   float64
 		speedOK bool
 	)
-	var serial string
 	var rxPowerValues, txPowerValues, biasCurrentValues, attenuationValues []float64
-	var voltageValue, wavelengthValue float64
 	var (
 		stateRegex,
 		physicalStateRegex,
@@ -471,24 +579,30 @@ func (n *NicModuleCollector) parseOutput(output string, device DeviceInfo) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.Contains(line, "Vendor Serial Number") {
-			serial = strings.TrimSpace(strings.Split(line, ":")[1])
+			metrics.serial = strings.TrimSpace(strings.Split(line, ":")[1])
 		} else if matches := serialRegex.FindStringSubmatch(line); matches != nil {
-			serial = matches[1]
+			metrics.serial = matches[1]
 		}
-		if !utf8.ValidString(serial) {
-			serial = "unknown"
+		if !utf8.ValidString(metrics.serial) {
+			metrics.serial = "unknown"
 		}
 
 		if matches := stateRegex.FindStringSubmatch(line); matches != nil {
-			state, stateOK = stateValue(matches[1])
+			if state, stateOK = stateValue(matches[1]); stateOK {
+				metrics.state = state
+			}
 		}
 
 		if matches := physicalStateRegex.FindStringSubmatch(line); matches != nil {
-			physicalState, physicalStateOK = physicalStateValue(matches[1])
+			if physicalState, physicalStateOK = physicalStateValue(matches[1]); physicalStateOK {
+				metrics.physicalState = physicalState
+			}
 		}
 
 		if matches := speedRegex.FindStringSubmatch(line); matches != nil {
-			speed, speedOK = gbps(matches[1])
+			if speed, speedOK = gbps(matches[1]); speedOK {
+				metrics.speed = speed
+			}
 		}
 
 		if strings.Contains(line, "Cable Type") || strings.Contains(line, "Connector") {
@@ -502,70 +616,43 @@ func (n *NicModuleCollector) parseOutput(output string, device DeviceInfo) {
 		if cableType == "optical" {
 			// Parse RX power
 			if matches := rxPowerRegex.FindStringSubmatch(line); matches != nil {
-				for _, val := range parseFloats(matches[1]) {
-					rxPowerValues = append(rxPowerValues, val)
-				}
+				metrics.rxPower = append(rxPowerValues, parseFloats(matches[1])...)
 			}
 			// Parse TX power
 			if matches := txPowerRegex.FindStringSubmatch(line); matches != nil {
-				for _, val := range parseFloats(matches[1]) {
-					txPowerValues = append(txPowerValues, val)
-				}
+				metrics.txPower = append(txPowerValues, parseFloats(matches[1])...)
 			}
 			// Parse bias current
 			if matches := biasCurrentRegex.FindStringSubmatch(line); matches != nil {
-				for _, val := range parseFloats(matches[1]) {
-					biasCurrentValues = append(biasCurrentValues, val)
-				}
+				metrics.biasCurrent = append(biasCurrentValues, parseFloats(matches[1])...)
 			}
 			// Parse voltage
 			if matches := voltageRegex.FindStringSubmatch(line); matches != nil {
-				voltageValue = parseFloats(matches[1])[0]
-				voltageValue = voltageValue * 1000
+				metrics.voltage = parseFloats(matches[1])[0] * 1000
 			}
 			// Parse wavelength
 			if matches := wavelengthRegex.FindStringSubmatch(line); matches != nil {
-				wavelengthValue = parseFloats(matches[1])[0]
+				metrics.wavelength = parseFloats(matches[1])[0]
 			}
 		} else if cableType == "copper" {
 			// Parse attenuation for copper
+			metrics.attenuation = make(map[string]float64)
 			if matches := attenuationRegex.FindStringSubmatch(line); matches != nil {
 				attenuationValues = parseFloats(matches[2])
 				attenuationSpeeds := parseSpeeds(matches[1])
 				for i, attenuationValue := range attenuationValues {
 					if i < len(attenuationSpeeds) {
-						n.attenuation.WithLabelValues(
-							attenuationSpeeds[i], device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot,
-						).Set(attenuationValue)
+						metrics.attenuation[attenuationSpeeds[i]] = attenuationValue
 					}
 				}
 			}
 		}
 	}
 
-	// Export link metrics
-	if stateOK {
-		n.state.WithLabelValues(device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot).Set(state)
+	resp <- runMlxlinkResponse{
+		error:  false,
+		result: metrics,
 	}
-	if physicalStateOK {
-		n.physicalState.WithLabelValues(device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot).Set(physicalState)
-	}
-	if speedOK {
-		n.speed.WithLabelValues(device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot).Set(speed)
-	}
-
-	// Export optical metrics
-	for i, bias := range biasCurrentValues {
-		n.biasCurrent.WithLabelValues(fmt.Sprintf("%d", i+1), device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot).Set(bias)
-	}
-	for i, rx := range rxPowerValues {
-		n.rxPower.WithLabelValues(fmt.Sprintf("%d", i+1), device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot).Set(rx)
-	}
-	for i, tx := range txPowerValues {
-		n.txPower.WithLabelValues(fmt.Sprintf("%d", i+1), device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot).Set(tx)
-	}
-	n.voltage.WithLabelValues(device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot).Set(voltageValue)
-	n.wavelength.WithLabelValues(device.mode, device.caName, device.netDev, serial, hostname, systemserial, slot).Set(wavelengthValue)
 }
 
 func removeAnsiEscapeCodes(output string) string {
