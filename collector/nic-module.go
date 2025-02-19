@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -42,14 +43,14 @@ type SlotInfo struct {
 
 type DeviceInfo struct {
 	pciAddress string
-	mode        string
+	mode       string
 	caName     string
-	netDev      string
+	netDev     string
 }
 
 type NicModuleCollector struct {
-	CachedSlots []SlotInfo
-
+	CachedSlots      []SlotInfo
+	metricsMutex     sync.Mutex
 	state            *prometheus.GaugeVec
 	physicalState    *prometheus.GaugeVec
 	speed            *prometheus.GaugeVec
@@ -71,19 +72,19 @@ func NewNicModuleCollector(namespace string) *NicModuleCollector {
 			Namespace: namespace,
 			Name:      "state",
 			Help:      "State (0: Disable, 1: Port PLL Down, 2: Polling, 3: Active, 4: Close port, 5: Physical Linkup, 6: Sleep, 7: Rx disable, ...)",
-		}, append(stdLabels)),
+		}, stdLabels),
 
 		physicalState: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "infiniband_physical_state",
 			Help:      "Infiniband physical state (0: Disabled, 1: Initializing, 2: Recover Config, 3: Config Test, 4: Wait Remote Test, 5: Wait Config Enhanced, 6: Config Idle, 7: LinkUp, ...)",
-		}, append(stdLabels)),
+		}, stdLabels),
 
 		speed: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "link_speed_bps",
 			Help:      "Link speed in bps",
-		}, append(stdLabels)),
+		}, stdLabels),
 
 		biasCurrent: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -143,6 +144,9 @@ func (n *NicModuleCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (n *NicModuleCollector) Collect(ch chan<- prometheus.Metric) {
+	// don't change while reading
+	n.metricsMutex.Lock()
+	defer n.metricsMutex.Unlock()
 	n.state.Collect(ch)
 	n.physicalState.Collect(ch)
 	n.speed.Collect(ch)
@@ -156,14 +160,37 @@ func (n *NicModuleCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 func (n *NicModuleCollector) UpdateMetrics() {
+	var wg sync.WaitGroup
+	// don't read while changing - will get incomplete/inconsistent metrics
+	n.metricsMutex.Lock()
+	defer n.metricsMutex.Unlock()
+	n.clearMetrics()
 	devices, _ := discoverMellanoxDevices()
 	pciAddress2PhysicalDeviceInfo := getPciAddress2PhysicalDevice()
 	for _, device := range devices {
+		wg.Add(1)
 		physicalDeviceInfo := pciAddress2PhysicalDeviceInfo[device.pciAddress]
 		device.caName = physicalDeviceInfo.caName
 		device.netDev = physicalDeviceInfo.netDev
-		go n.runMlxlink(device)
+		go func() {
+			defer wg.Done()
+			n.runMlxlink(device)
+		}()
 	}
+	wg.Wait()
+}
+
+func (n *NicModuleCollector) clearMetrics() {
+	n.state.Reset()
+	n.physicalState.Reset()
+	n.speed.Reset()
+	n.biasCurrent.Reset()
+	n.voltage.Reset()
+	n.wavelength.Reset()
+	n.transferDistance.Reset()
+	n.rxPower.Reset()
+	n.txPower.Reset()
+	n.attenuation.Reset()
 }
 
 func getBondedIbDevice2Slaves() map[string][]string {
@@ -502,21 +529,15 @@ func (n *NicModuleCollector) parseOutput(output string, device DeviceInfo) {
 		if cableType == "optical" {
 			// Parse RX power
 			if matches := rxPowerRegex.FindStringSubmatch(line); matches != nil {
-				for _, val := range parseFloats(matches[1]) {
-					rxPowerValues = append(rxPowerValues, val)
-				}
+				rxPowerValues = append(rxPowerValues, parseFloats(matches[1])...)
 			}
 			// Parse TX power
 			if matches := txPowerRegex.FindStringSubmatch(line); matches != nil {
-				for _, val := range parseFloats(matches[1]) {
-					txPowerValues = append(txPowerValues, val)
-				}
+				txPowerValues = append(txPowerValues, parseFloats(matches[1])...)
 			}
 			// Parse bias current
 			if matches := biasCurrentRegex.FindStringSubmatch(line); matches != nil {
-				for _, val := range parseFloats(matches[1]) {
-					biasCurrentValues = append(biasCurrentValues, val)
-				}
+				biasCurrentValues = append(biasCurrentValues, parseFloats(matches[1])...)
 			}
 			// Parse voltage
 			if matches := voltageRegex.FindStringSubmatch(line); matches != nil {
