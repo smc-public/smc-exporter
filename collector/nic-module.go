@@ -532,6 +532,7 @@ func (n *NicModuleCollector) parseOutput(output string, device DeviceInfo, resp 
 
 	metrics.hostname = hostname
 	metrics.product_serial = systemserial
+	metrics.slot = slot
 
 	// mlxlink uses ansi escape codes to highlight values
 	// remove them so we can concentrate on content
