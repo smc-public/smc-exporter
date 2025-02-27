@@ -15,6 +15,7 @@ After a binary is built or downloaded, you can simply copy it and use the exampl
 cp smc-exporter /usr/local/bin/smc-exporter
 cp smc-exporter.service /usr/lib/systemd/system
 systemctl daemon-reload
+systemctl enable smc-exporter
 systemctl start smc-exporter
 ```
 This will give you a systemd service (smc-exporter) with the exporter running on the default port, 2112. If you want to use a different port, you will need to override the systemd unit or modify the service file before copying with the flag `-port {portnumber}`. 
