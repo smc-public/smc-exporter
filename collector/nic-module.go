@@ -437,7 +437,7 @@ func (n *NicModuleCollector) runMlxlink(hostname string, systemserial string, sl
 	cmd := exec.Command("mlxlink", "-d", device.pciAddress, "-m")
 	output, err := cmd.CombinedOutput()
 	if err == nil {
-		metrics := n.parseOutput(string(output), hostname, systemserial, slot, device)
+		metrics := parseOutput(string(output), hostname, systemserial, slot, device)
 		resp <- runMlxlinkResponse{metrics, false}
 	
 	} else {
@@ -623,7 +623,7 @@ func lookupKey(lookupMap map[string]string, lookupValue string) (string, bool) {
 }
 
 // Parse mlxlink data and set metrics
-func (n *NicModuleCollector) parseOutput(output string, hostname string, systemserial string, slot string, device DeviceInfo) PortMetrics {
+func parseOutput(output string, hostname string, systemserial string, slot string, device DeviceInfo) PortMetrics {
 	var metrics PortMetrics
 
 	metrics.mode = device.mode
