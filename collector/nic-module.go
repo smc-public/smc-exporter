@@ -95,6 +95,89 @@ type runMlxlinkResponse struct {
 	result PortMetrics
 }
 
+var stateValues = map[string]float64{
+	"Disable":         0,
+	"Port PLL Down":   1,
+	"Polling":         2,
+	"Active":          3,
+	"Close port":      4,
+	"Physical LinkUp": 5,
+	"Sleep":           6,
+	"Rx disable":      7,
+	"Signal detect":   8,
+	"Receiver detect": 9,
+	"Sync peer":       10,
+	"Negotiation":     11,
+	"Training":        12,
+	"SubFSM active":   13,
+}
+
+var speed2bps = map[string]float64{
+	// IB
+	"IB-SDR":   10000000000,
+	"IB-DDR":   20000000000,
+	"IB-QDR":   40000000000,
+	"IB-FDR10": 40000000000,
+	"IB-FDR":   56000000000,
+	"IB-EDR":   100000000000,
+	"IB-HDR":   200000000000,
+	"IB-NDR":   400000000000,
+	"IB-XDR":   800000000000,
+	// Eth
+	"BaseTx100M": 100000000,
+	"BaseT1000M": 1000000000,
+	"BaseT10M":   10000000,
+	"CX":         1000000000,
+	"KX":         1000000000,
+	"CX4":        10000000000,
+	"KX4":        10000000000,
+	"BaseT10G":   10000000000,
+	"10GbE":      10000000000,
+	"20GbE":      20000000000,
+	"25GbE":      25000000000,
+	"40GbE":      40000000000,
+	"50GbE":      50000000000,
+	"56GbE":      56000000000,
+	"100GbE":     100000000000,
+	// Ext Eth
+	"100M": 100000000,
+	"1G":   1000000000,
+	"2.5G": 2500000000,
+	"5G":   5000000000,
+	"10G":  10000000000,
+	"40G":  40000000000,
+	"25G":  25000000000,
+	"50G":  50000000000,
+	"100G": 100000000000,
+	"200G": 200000000000,
+	"400G": 400000000000,
+	"800G": 800000000000,
+	"10M":  10000000,
+}
+
+var physicalStateValues = map[string]float64{
+	"Disabled":                   0,
+	"Initializing":               1,
+	"Recover Config":             2,
+	"Config Test":                3,
+	"Wait Remote Test":           4,
+	"Wait Config Enhanced":       5,
+	"Config Idle":                6,
+	"LinkUp":                     7,
+	"ETH_AN_FSM_ENABLE":          10,
+	"ETH_AN_FSM_XMIT_DISABLE":    11,
+	"ETH_AN_FSM_ABILITY_DETECT":  12,
+	"ETH_AN_FSM_ACK_DETECT":      13,
+	"ETH_AN_FSM_COMPLETE_ACK":    14,
+	"ETH_AN_FSM_AN_GOOD_CHECK":   15,
+	"ETH_AN_FSM_NEXT_PAGE_WAIT":  17,
+	"ETH_AN_FSM_LINK_STAT_CHECK": 18,
+	"ETH_AN_FSM_EXTRA_TUNE":      9,
+	"ETH_AN_FSM_FIX_REVERSALS":   10,
+	"ETH_AN_FSM_IB_FAIL":         11,
+	"ETH_AN_FSM_POST_LOCK_TUNE":  12,
+}
+
 func NewNicModuleCollector(namespace string) *NicModuleCollector {
 	laneLabel := []string{"lane"}
 	speedLabel := []string{"speed"}
@@ -589,19 +672,19 @@ func (n *NicModuleCollector) parseOutput(output string, device DeviceInfo, resp 
 		}
 
 		if matches := stateRegex.FindStringSubmatch(line); matches != nil {
-			if state, stateOK = stateValue(matches[1]); stateOK {
+			if state, stateOK = stateValues[matches[1]]; stateOK {
 				metrics.state = state
 			}
 		}
 
 		if matches := physicalStateRegex.FindStringSubmatch(line); matches != nil {
-			if physicalState, physicalStateOK = physicalStateValue(matches[1]); physicalStateOK {
+			if physicalState, physicalStateOK = physicalStateValues[matches[1]]; physicalStateOK {
 				metrics.physicalState = physicalState
 			}
 		}
 
 		if matches := speedRegex.FindStringSubmatch(line); matches != nil {
-			if speed, speedOK = gbps(matches[1]); speedOK {
+			if speed, speedOK = speed2bps[matches[1]]; speedOK {
 				metrics.speed = speed
 			}
 		}
@@ -659,113 +742,6 @@ func (n *NicModuleCollector) parseOutput(output string, device DeviceInfo, resp 
 func removeAnsiEscapeCodes(output string) string {
 	ansiEscapeCodeRegEx := regexp.MustCompile("[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))")
 	return ansiEscapeCodeRegEx.ReplaceAllString(output, "")
-}
-
-func stateValue(stateName string) (float64, bool) {
-	var stateValues = map[string]float64{
-		"Disable":         0,
-		"Port PLL Down":   1,
-		"Polling":         2,
-		"Active":          3,
-		"Close port":      4,
-		"Physical LinkUp": 5,
-		"Sleep":           6,
-		"Rx disable":      7,
-		"Signal detect":   8,
-		"Receiver detect": 9,
-		"Sync peer":       10,
-		"Negotiation":     11,
-		"Training":        12,
-		"SubFSM active":   13,
-	}
-
-	if value, exists := stateValues[stateName]; exists {
-		return value, true
-	} else {
-		return -1, false
-	}
-}
-
-func physicalStateValue(physicalStateName string) (float64, bool) {
-	var physicalStateValues = map[string]float64{
-		"Disabled":                   0,
-		"Initializing":               1,
-		"Recover Config":             2,
-		"Config Test":                3,
-		"Wait Remote Test":           4,
-		"Wait Config Enhanced":       5,
-		"Config Idle":                6,
-		"LinkUp":                     7,
-		"ETH_AN_FSM_ENABLE":          10,
-		"ETH_AN_FSM_XMIT_DISABLE":    11,
-		"ETH_AN_FSM_ABILITY_DETECT":  12,
-		"ETH_AN_FSM_ACK_DETECT":      13,
-		"ETH_AN_FSM_COMPLETE_ACK":    14,
-		"ETH_AN_FSM_AN_GOOD_CHECK":   15,
-		"ETH_AN_FSM_NEXT_PAGE_WAIT":  17,
-		"ETH_AN_FSM_LINK_STAT_CHECK": 18,
-		"ETH_AN_FSM_EXTRA_TUNE":      9,
-		"ETH_AN_FSM_FIX_REVERSALS":   10,
-		"ETH_AN_FSM_IB_FAIL":         11,
-		"ETH_AN_FSM_POST_LOCK_TUNE":  12,
-	}
-
-	if value, exists := physicalStateValues[physicalStateName]; exists {
-		return value, true
-	} else {
-		return -1, false
-	}
-}
-
-func gbps(speed string) (float64, bool) {
-	var speed2bps = map[string]float64{
-		// IB
-		"IB-SDR":   10000000000,
-		"IB-DDR":   20000000000,
-		"IB-QDR":   40000000000,
-		"IB-FDR10": 40000000000,
-		"IB-FDR":   56000000000,
-		"IB-EDR":   100000000000,
-		"IB-HDR":   200000000000,
-		"IB-NDR":   400000000000,
-		"IB-XDR":   800000000000,
-		// Eth
-		"BaseTx100M": 100000000,
-		"BaseT1000M": 1000000000,
-		"BaseT10M":   10000000,
-		"CX":         1000000000,
-		"KX":         1000000000,
-		"CX4":        10000000000,
-		"KX4":        10000000000,
-		"BaseT10G":   10000000000,
-		"10GbE":      10000000000,
-		"20GbE":      20000000000,
-		"25GbE":      25000000000,
-		"40GbE":      40000000000,
-		"50GbE":      50000000000,
-		"56GbE":      56000000000,
-		"100GbE":     100000000000,
-		// Ext Eth
-		"100M": 100000000,
-		"1G":   1000000000,
-		"2.5G": 2500000000,
-		"5G":   5000000000,
-		"10G":  10000000000,
-		"40G":  40000000000,
-		"25G":  25000000000,
-		"50G":  50000000000,
-		"100G": 100000000000,
-		"200G": 200000000000,
-		"400G": 400000000000,
-		"800G": 800000000000,
-		"10M":  10000000,
-	}
-
-	if value, exists := speed2bps[speed]; exists {
-		return value, true
-	} else {
-		return -1, false
-	}
 }
 
 func parseFloats(s string) []float64 {
