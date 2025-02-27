@@ -91,8 +91,8 @@ type readCachedMetricsRequest struct {
 }
 
 type runMlxlinkResponse struct {
-	error  bool
 	result PortMetrics
+	error  bool
 }
 
 var stateValues = map[string]float64{
@@ -330,12 +330,16 @@ func (n *NicModuleCollector) manageCachedMetricsAccess() {
 func (n *NicModuleCollector) UpdateMetrics() {
 	devices, _ := discoverMellanoxDevices()
 	pciAddress2PhysicalDeviceInfo := getPciAddress2PhysicalDevice()
+	hostname := getHostName()
+	systemserial := getSystemSerial()
+
 	responses := make(chan runMlxlinkResponse)
 	for _, device := range devices {
 		physicalDeviceInfo := pciAddress2PhysicalDeviceInfo[device.pciAddress]
 		device.caName = physicalDeviceInfo.caName
 		device.netDev = physicalDeviceInfo.netDev
-		go n.runMlxlink(device, responses)
+		slot := n.getSlot(device)
+		go n.runMlxlink(hostname, systemserial, slot, device, responses)
 	}
 	metrics := make([]PortMetrics, len(devices))
 	metricsIdx := 0
@@ -347,6 +351,30 @@ func (n *NicModuleCollector) UpdateMetrics() {
 		}
 	}
 	n.cacheMetrics(metrics)
+}
+
+func (n *NicModuleCollector) getSlot(device DeviceInfo) string {
+	slot := n.matchMellanoxSlot(device.pciAddress)
+	if !utf8.ValidString(slot) {
+		slot = "unknown"
+	}
+	return slot
+}
+
+func getSystemSerial() string {
+	cmd := exec.Command("dmidecode", "-s", "system-serial-number")
+	out, _ := cmd.Output()
+	systemserial := strings.TrimSpace(string(out))
+	return systemserial
+}
+
+func getHostName() string {
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Errorf("Error getting hostname: %v\n", err)
+		hostname = "unknown"
+	}
+	return hostname
 }
 
 func getBondedIbDevice2Slaves() map[string][]string {
@@ -405,14 +433,16 @@ func discoverMellanoxDevices() ([]DeviceInfo, error) {
 	return mellanoxDevices, nil
 }
 
-func (n *NicModuleCollector) runMlxlink(device DeviceInfo, resp chan runMlxlinkResponse) {
+func (n *NicModuleCollector) runMlxlink(hostname string, systemserial string, slot string, device DeviceInfo, resp chan runMlxlinkResponse) {
 	cmd := exec.Command("mlxlink", "-d", device.pciAddress, "-m")
 	output, err := cmd.CombinedOutput()
 	if err == nil {
-		n.parseOutput(string(output), device, resp)
+		metrics := n.parseOutput(string(output), hostname, systemserial, slot, device)
+		resp <- runMlxlinkResponse{metrics, false}
+	
 	} else {
 		log.Errorf("Error running mlxlink -d %s: %s\n", device.pciAddress, err)
-		resp <- runMlxlinkResponse{true, PortMetrics{}}
+		resp <- runMlxlinkResponse{PortMetrics{}, true}
 	}
 }
 
@@ -593,26 +623,12 @@ func lookupKey(lookupMap map[string]string, lookupValue string) (string, bool) {
 }
 
 // Parse mlxlink data and set metrics
-func (n *NicModuleCollector) parseOutput(output string, device DeviceInfo, resp chan runMlxlinkResponse) {
+func (n *NicModuleCollector) parseOutput(output string, hostname string, systemserial string, slot string, device DeviceInfo) PortMetrics {
 	var metrics PortMetrics
 
 	metrics.mode = device.mode
 	metrics.caname = device.caName
 	metrics.netdev = device.netDev
-
-	hostname, err := os.Hostname()
-	cmd := exec.Command("dmidecode", "-s", "system-serial-number")
-	out, _ := cmd.Output()
-	systemserial := strings.TrimSpace(string(out))
-	slot := n.matchMellanoxSlot(device.pciAddress)
-	if !utf8.ValidString(slot) {
-		slot = "unknown"
-	}
-	if err != nil {
-		log.Errorf("Error getting hostname: %v\n", err)
-		hostname = "unknown"
-	}
-
 	metrics.hostname = hostname
 	metrics.product_serial = systemserial
 	metrics.slot = slot
@@ -733,10 +749,8 @@ func (n *NicModuleCollector) parseOutput(output string, device DeviceInfo, resp 
 		}
 	}
 
-	resp <- runMlxlinkResponse{
-		error:  false,
-		result: metrics,
-	}
+	return metrics
+
 }
 
 func removeAnsiEscapeCodes(output string) string {
