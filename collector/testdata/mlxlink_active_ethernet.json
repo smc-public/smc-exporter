@@ -97,6 +97,20 @@
 				"Rx Power Current [dBm]" : "-3,-2,-1,0 [-10..4]",
 				"Rx Power Type" : "Average power",
 				"SMF Length" : "N/A",
+				"SNR Host Lanes [dB]" :
+				{
+						"values" :
+						[
+								"N/A"
+						]
+				},
+				"SNR Media Lanes [dB]" :
+				{
+						"values" :
+						[
+								"N/A"
+						]
+				},
 				"Temperature [C]" : "41 [-10..80]",
 				"Transfer Distance [m]" : "0.0",
 				"Tx Adaptive EQ Fault [per lane]" : 

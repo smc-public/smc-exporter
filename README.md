@@ -42,12 +42,14 @@ Currently smc-exporter only collects metrics for HCA transceivers running in Inf
 - datapath state
 - power Rx (for each lane)
 - power Tx (for each lane)
+- SNR Media (for each lane)
+- SNR Host (for each lane)
 - wavelength
 - transfer distance
 - effective BER
 - effective errors
 - raw BER
-- raw errors
+- raw errors (for each lane)
 - symbol BER
 - symbol errors
 - link down counter

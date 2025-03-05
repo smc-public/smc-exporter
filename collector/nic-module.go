@@ -72,6 +72,8 @@ type PortMetrics struct {
 	transferDistance float64
 	rxPower          []float64
 	txPower          []float64
+	snrMedia         []float64
+	snrHost          []float64
 	attenuation      map[string]float64
 	effectiveBer     float64
 	effectiveErrors  float64
@@ -103,6 +105,8 @@ type NicModuleCollector struct {
 	transferDistanceDesc *prometheus.Desc
 	rxPowerDesc          *prometheus.Desc
 	txPowerDesc          *prometheus.Desc
+	snrMediaDesc         *prometheus.Desc
+	snrHostDesc          *prometheus.Desc
 	attenuationDesc      *prometheus.Desc
 	effectiveBerDesc     *prometheus.Desc
 	effectiveErrorsDesc  *prometheus.Desc
@@ -326,6 +330,20 @@ func NewNicModuleCollector(namespace string) *NicModuleCollector {
 			nil,
 		),
 
+		snrMediaDesc: prometheus.NewDesc(
+			namespace+"_snr_media_dB",
+			"SNR media in dB",
+			append(laneLabel, stdLabels...),
+			nil,
+		),
+
+		snrHostDesc: prometheus.NewDesc(
+			namespace+"_snr_host_dB",
+			"SNR host in dB",
+			append(laneLabel, stdLabels...),
+			nil,
+		),
+
 		attenuationDesc: prometheus.NewDesc(
 			namespace+"_copper_attenuation_dB",
 			"Attenuation in dB per signal speed for copper cables",
@@ -414,6 +432,8 @@ func (n *NicModuleCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- n.transferDistanceDesc
 	ch <- n.rxPowerDesc
 	ch <- n.txPowerDesc
+	ch <- n.snrMediaDesc
+	ch <- n.snrHostDesc
 	ch <- n.attenuationDesc
 	ch <- n.effectiveBerDesc
 	ch <- n.effectiveErrorsDesc
@@ -454,6 +474,14 @@ func (n *NicModuleCollector) Collect(ch chan<- prometheus.Metric) {
 		for laneIdx, txPowerValue := range port.txPower {
 			laneLabelValues := []string{strconv.Itoa(laneIdx + 1)}
 			ch <- prometheus.MustNewConstMetric(n.txPowerDesc, prometheus.GaugeValue, txPowerValue, append(laneLabelValues, stdLabelValues...)...)
+		}
+		for laneIdx, snrMediaValue := range port.snrMedia {
+			laneLabelValues := []string{strconv.Itoa(laneIdx + 1)}
+			ch <- prometheus.MustNewConstMetric(n.snrMediaDesc, prometheus.GaugeValue, snrMediaValue, append(laneLabelValues, stdLabelValues...)...)
+		}
+		for laneIdx, snrHostValue := range port.snrHost {
+			laneLabelValues := []string{strconv.Itoa(laneIdx + 1)}
+			ch <- prometheus.MustNewConstMetric(n.snrHostDesc, prometheus.GaugeValue, snrHostValue, append(laneLabelValues, stdLabelValues...)...)
 		}
 		for speedValue, attenuationValue := range port.attenuation {
 			speedLabelValues := []string{speedValue}
@@ -857,7 +885,30 @@ func parseOutput(output string, hostname string, systemserial string, slot strin
 	metrics.attenuation = map[string]float64{}
 	metrics.rxPower = []float64{}
 	metrics.txPower = []float64{}
+	metrics.snrMedia = []float64{}
+	metrics.snrHost = []float64{}
 	metrics.biasCurrent = []float64{}
+
+	temperature := mlxout.Get("result.output.Module Info.Temperature [C]").String()
+	if matches := valuesRegex.FindStringSubmatch(temperature); matches != nil {
+		metrics.temperature, _ = strconv.ParseFloat(matches[1], 64)
+	}
+
+	snrMediaPerLane := mlxout.Get("result.output.Module Info.SNR Media Lanes [dB].values").Array()
+	if len(snrMediaPerLane) != 1 || snrMediaPerLane[0].String() != "N/A" {
+		metrics.snrMedia = make([]float64, len(snrMediaPerLane))
+		for i, snrMedia := range snrMediaPerLane {
+			metrics.snrMedia[i] = snrMedia.Float()
+		}
+	}
+
+	snrHostPerLane := mlxout.Get("result.output.Module Info.SNR Host Lanes [dB].values").Array()
+	if len(snrHostPerLane) != 1 || snrHostPerLane[0].String() != "N/A" {
+		metrics.snrHost = make([]float64, len(snrHostPerLane))
+		for i, snrHost := range snrHostPerLane {
+			metrics.snrHost[i] = snrHost.Float()
+		}
+	}
 
 	if cableType == "optical" {
 		// Parse DataPath state
@@ -880,11 +931,6 @@ func parseOutput(output string, hostname string, systemserial string, slot strin
 		biasCurrent := mlxout.Get("result.output.Module Info.Bias Current [mA]").String()
 		if matches := valuesRegex.FindStringSubmatch(biasCurrent); matches != nil {
 			metrics.biasCurrent, _ = parseFloats(matches[1])
-		}
-		// Parse temperature
-		temperature := mlxout.Get("result.output.Module Info.Temperature [C]").String()
-		if matches := valuesRegex.FindStringSubmatch(temperature); matches != nil {
-			metrics.temperature, _ = strconv.ParseFloat(matches[1], 64)
 		}
 		// Parse voltage
 		voltage := mlxout.Get("result.output.Module Info.Voltage [mV]").String()
