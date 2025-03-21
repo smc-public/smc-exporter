@@ -7,6 +7,57 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestActiveEthernetNoFecHistogram(t *testing.T) {
+	bytes, _ := os.ReadFile("testdata/mlxlink_active_ethernet_no_fec_histogram.json")
+	testMlxlinkOutput := string(bytes)
+	os.Stdout.WriteString("DATA: " + testMlxlinkOutput + "\n")
+	deviceInfo := DeviceInfo{
+		pciAddress: "1b:00.0",
+		mode:       "ethernet",
+		caName:     "mlx5_0",
+		netDev:     "ib0",
+	}
+	result := parseOutput(testMlxlinkOutput, "hostname", "systemserial", "slot", deviceInfo)
+	expected := PortMetrics{
+		hostname:         "hostname",
+		systemserial:     "systemserial",
+		slot:             "slot",
+		mode:             "ethernet",
+		caname:           "mlx5_0",
+		netdev:           "ib0",
+		state:            3,
+		physicalState:    10,
+		speed:            200000000000,
+		width:            4,
+		serial:           "5C2410312895",
+		vendor:           "Firmus",
+		partNumber:       "QSFP200I-SR4-5M",
+		moduleState:      3,
+		dataPathState:    []float64{4, 4, 4, 4},
+		biasCurrent:      []float64{7.640, 8.100, 7.740, 8.180},
+		temperature:      41,
+		voltage:          3248.7,
+		wavelength:       850,
+		transferDistance: 0.0,
+		rxPower:          []float64{-3, -2, -1, 0},
+		txPower:          []float64{1, 2, 3, 4},
+		snrMedia:         []float64{},
+		snrHost:          []float64{},
+		attenuation:      map[string]float64{},
+		effectiveBer:     15e-255,
+		effectiveErrors:  5,
+		rawBer:           8e-13,
+		symbolBer:        0,
+		symbolErrors:     0,
+		linkDown:         0,
+		linkRecovery:     0,
+		lastClearTime:    6863.7 * 60,
+		rawErrors:        []float64{54126, 3782, 1578, 5277},
+		fecErrors:        []float64{},
+	}
+	assert.Equal(t, expected, result)
+}
+
 func TestActiveEthernet(t *testing.T) {
 	bytes, _ := os.ReadFile("testdata/mlxlink_active_ethernet.json")
 	testMlxlinkOutput := string(bytes)
@@ -50,8 +101,9 @@ func TestActiveEthernet(t *testing.T) {
 		symbolErrors:     0,
 		linkDown:         0,
 		linkRecovery:     0,
-		lastClearTime:    6863.7*60,
+		lastClearTime:    6863.7 * 60,
 		rawErrors:        []float64{54126, 3782, 1578, 5277},
+		fecErrors:        []float64{157550930963675, 5638939059, 47990561, 5667737, 1568982, 5217, 2786, 58},
 	}
 	assert.Equal(t, expected, result)
 }
@@ -89,8 +141,8 @@ func TestActiveInfiniband(t *testing.T) {
 		transferDistance: 0.0,
 		rxPower:          []float64{-3, -2, -1, 0},
 		txPower:          []float64{1, 2, 3, 4},
-		snrMedia:         []float64{4,3,2,1},
-		snrHost:          []float64{8,7,6,5},
+		snrMedia:         []float64{4, 3, 2, 1},
+		snrHost:          []float64{8, 7, 6, 5},
 		attenuation:      map[string]float64{},
 		effectiveBer:     15e-255,
 		effectiveErrors:  1,
@@ -99,8 +151,9 @@ func TestActiveInfiniband(t *testing.T) {
 		symbolErrors:     4,
 		linkDown:         2,
 		linkRecovery:     3,
-		lastClearTime:    6750.4*60,
+		lastClearTime:    6750.4 * 60,
 		rawErrors:        []float64{6045465, 14059590, 18460013, 5651086},
+		fecErrors:        []float64{157550930963675, 5638939059, 47990561, 5667737, 1568982, 5217, 2786, 58},
 	}
 	assert.Equal(t, expected, result)
 }
