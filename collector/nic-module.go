@@ -991,17 +991,10 @@ func parseOutput(output string, hostname string, systemserial string, slot strin
 
 	if mlxout.Get("result.output.Histogram of FEC Errors").Exists() {
 		fecErrorBins := mlxout.Get("result.output.Histogram of FEC Errors")
-		// if fecErrorBins.Exists() {
-		// 	os.Stdout.WriteString("** BINS EXISTS\n")
-		// } else {
-		// 	os.Stdout.WriteString("** BINS NOT EXISTS\n")
-		// }
-		// os.Stdout.WriteString("** BINS: " + fecErrorBins.String() + "\n")
 
 		metrics.fecErrors = make([]float64, 8)
 		for i := range 8 {
 			binJson := fecErrorBins.Get("Bin " + strconv.Itoa(i))
-			// os.Stdout.WriteString("** BIN " + strconv.Itoa(i) + " JSON: " + binJson.String() + "\n")
 			binValue, err := strconv.ParseFloat(binJson.Get("values").Array()[1].String(), 64)
 			if err != nil {
 				metrics.fecErrors[i] = -1
