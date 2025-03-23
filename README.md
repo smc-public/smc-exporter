@@ -50,6 +50,7 @@ Currently smc-exporter only collects metrics for HCA transceivers running in Inf
 - effective errors
 - raw BER
 - raw errors (for each lane)
+- FEC error histogram bins
 - symbol BER
 - symbol errors
 - link down counter
