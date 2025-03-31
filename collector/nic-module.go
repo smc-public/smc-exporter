@@ -504,9 +504,10 @@ func (n *NicModuleCollector) Collect(ch chan<- prometheus.Metric) {
 			laneValue := []string{strconv.Itoa(laneIdx + 1)}
 			ch <- prometheus.MustNewConstMetric(n.rawErrorsDesc, prometheus.CounterValue, rawErrors, append(laneValue, stdLabelValues...)...)
 		}
-		for laneIdx, fecErrors := range port.fecErrors {
-			laneValue := []string{strconv.Itoa(laneIdx + 1)}
-			ch <- prometheus.MustNewConstMetric(n.fecErrorsDesc, prometheus.CounterValue, fecErrors, append(laneValue, stdLabelValues...)...)
+
+		for binIdx, fecErrors := range port.fecErrors {
+			binValue := []string{strconv.Itoa(binIdx + 1)}
+			ch <- prometheus.MustNewConstMetric(n.fecErrorsDesc, prometheus.CounterValue, fecErrors, append(binValue, stdLabelValues...)...)
 		}
 		if port.mode == "infiniband" {
 			ch <- prometheus.MustNewConstMetric(n.symbolBerDesc, prometheus.GaugeValue, port.symbolBer, stdLabelValues...)

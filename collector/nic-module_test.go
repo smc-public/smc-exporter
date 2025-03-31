@@ -61,6 +61,7 @@ func TestActiveEthernetNoFecHistogram(t *testing.T) {
 func TestActiveEthernet(t *testing.T) {
 	bytes, _ := os.ReadFile("testdata/mlxlink_active_ethernet.json")
 	testMlxlinkOutput := string(bytes)
+	os.Stdout.WriteString("DATA: " + testMlxlinkOutput + "\n")
 	deviceInfo := DeviceInfo{
 		pciAddress: "1b:00.0",
 		mode:       "ethernet",
@@ -111,6 +112,7 @@ func TestActiveEthernet(t *testing.T) {
 func TestActiveInfiniband(t *testing.T) {
 	bytes, _ := os.ReadFile("testdata/mlxlink_active_infiniband.json")
 	testMlxlinkOutput := string(bytes)
+	os.Stdout.WriteString("DATA: " + testMlxlinkOutput + "\n")
 	deviceInfo := DeviceInfo{
 		pciAddress: "1b:00.0",
 		mode:       "infiniband",
