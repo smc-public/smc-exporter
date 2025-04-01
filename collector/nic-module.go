@@ -235,6 +235,7 @@ var dataPathStateValues = map[string]float64{
 
 func NewNicModuleCollector(namespace string) *NicModuleCollector {
 	laneLabel := []string{"lane"}
+	binLabel := []string{"bin"}
 	speedLabel := []string{"speed"}
 	stdLabels := []string{"mode", "caname", "netdev", "serial", "hostname", "product_serial", "vendor", "part_number", "slot"}
 	collector := &NicModuleCollector{
@@ -384,7 +385,7 @@ func NewNicModuleCollector(namespace string) *NicModuleCollector {
 		fecErrorsDesc: prometheus.NewDesc(
 			namespace+"_fec_errors",
 			"FEC error bins",
-			append(laneLabel, stdLabels...),
+			append(binLabel, stdLabels...),
 			nil,
 		),
 
