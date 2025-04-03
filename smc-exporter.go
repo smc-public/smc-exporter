@@ -21,20 +21,27 @@ package main
 
 import (
 	"flag"
-	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
+	"fmt"
+	"os"
 	sprom "smc-exporter/collector"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
+	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/version"
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
 	var port string
 	var interval int
+	var showVersion bool
 	flag.StringVar(&port, "port", "2112", "Port to expose metrics on")
 	flag.IntVar(&interval, "interval", 10, "Interval used to update metrics")
+	flag.BoolVar(&showVersion, "version", false, "Show application version")
 	logLevel := flag.String("loglevel", "info", "Set the log level: trace, debug, info, warn, error, fatal, panic")
 	flag.Parse()
 
@@ -44,8 +51,14 @@ func main() {
 	}
 	log.SetLevel(level)
 
+	if showVersion {
+		fmt.Println(version.Print("smc_exporter"))
+		os.Exit(0)
+	}
+
 	router := gin.Default()
 	reg := prometheus.NewRegistry()
+	reg.MustRegister(versioncollector.NewCollector("smc_exporter"))
 	se := NewSmcExporter()
 	// Start collection loop (prometheus scrape is async)
 	go func() {
@@ -63,7 +76,8 @@ func main() {
 	reg.MustRegister(se)
 	sh := SmcPrometheusHandler(reg)
 	router.GET("/metrics", sh)
-	log.Println("Starting smc-exporter on port " + port)
+	log.Println("Starting smc-exporter on port " + port, "version", version.Info())
+	log.Info("Build context", "build_context", version.BuildContext())
 	router.Run(":" + port)
 }
 
