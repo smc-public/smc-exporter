@@ -1,6 +1,11 @@
 #!/bin/bash
 
-VERSION=$(cat VERSION)
+if [ "$1" == "-release" ]; then
+    VERSION=$(cat VERSION)
+else
+    VERSION="$(cat VERSION)-a.Dev"
+fi
+
 
 PLATFORMS=("linux/amd64")
 
