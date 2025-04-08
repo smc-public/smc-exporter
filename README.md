@@ -1,4 +1,6 @@
 # SMC prometheus exporter
+![go workflow](https://github.com/smc-public/smc-exporter/actions/workflows/go.yml/badge.svg)
+![golangci-lint workflow](https://github.com/smc-public/smc-exporter/actions/workflows/golangci-lint.yml/badge.svg)
 ## Building
 Pre-requisites:
 - go 1.21 or later
@@ -20,7 +22,7 @@ systemctl daemon-reload
 systemctl enable smc-exporter
 systemctl start smc-exporter
 ```
-This will give you a systemd service (smc-exporter) with the exporter running on the default port, 2112. If you want to use a different port, you will need to override the systemd unit or modify the service file before copying with the flag `-port {portnumber}`. 
+This will give you a systemd service (smc-exporter) with the exporter running on the default port, 2112. If you want to use a different port, you will need to override the systemd unit or modify the service file before copying with the flag `-port {portnumber}`.
 ## Uninstalling
 To uninstall, stop and remove the service and remove the executeable.  eg.
 ```
@@ -57,4 +59,3 @@ Currently smc-exporter only collects metrics for HCA transceivers running in Inf
 - link down counter
 - link recovery counter
 - time since last clear
-

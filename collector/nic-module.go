@@ -21,7 +21,6 @@ package collector
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -221,14 +220,14 @@ var moduleStateValues = map[string]float64{
 }
 
 var dataPathStateValues = map[string]float64{
-    "N/A": 0,
-    "DPDeactivated": 1,
-    "DPInit": 2,
-    "DPDeinit": 3,
-    "DPActivated": 4,
-    "DPTxTurnOn": 5,
-    "DPTxTurnOff": 6,
-    "DPInitialized": 7,
+	"N/A":           0,
+	"DPDeactivated": 1,
+	"DPInit":        2,
+	"DPDeinit":      3,
+	"DPActivated":   4,
+	"DPTxTurnOn":    5,
+	"DPTxTurnOff":   6,
+	"DPInitialized": 7,
 }
 
 func NewNicModuleCollector(namespace string) *NicModuleCollector {
@@ -636,7 +635,7 @@ func discoverMellanoxDevices() ([]DeviceInfo, error) {
 }
 
 func (n *NicModuleCollector) runMlxlink(hostname string, systemserial string, slot string, device DeviceInfo, resp chan runMlxlinkResponse) {
-	cmd := exec.Command("mlxlink", "-json", "-d", device.pciAddress, "-m", "-c")
+	cmd := exec.Command("mlxlink", "-json", "-d", device.pciAddress, "-m", "-c") // #nosec G204
 	output, err := cmd.CombinedOutput()
 	if err == nil {
 		metrics := parseOutput(string(output), hostname, systemserial, slot, device)
@@ -697,8 +696,8 @@ func (n *NicModuleCollector) UpdateSlotInfo() {
 		if match := designationPattern.FindStringSubmatch(line); match != nil {
 			slot.Designation = match[1]
 			// Extract the slot number from the designation
-			if slotNumMatch := slotNumberPattern.FindStringSubmatch(slot.Designation); len(slotNumMatch) > 0 {
-				fmt.Sscanf(slotNumMatch[0], "%s", &slot.SlotNumber) // Convert string to int
+			if slotNumMatch := slotNumberPattern.FindStringSubmatch(slot.Designation); slotNumMatch != nil {
+				slot.SlotNumber = slotNumMatch[0]
 			}
 		}
 
@@ -916,7 +915,7 @@ func parseOutput(output string, hostname string, systemserial string, slot strin
 		metrics.dataPathState = make([]float64, len(dataPathStatePerLane))
 		for i, dataPathState := range dataPathStatePerLane {
 			metrics.dataPathState[i] = dataPathStateValues[dataPathState.String()]
-		}	
+		}
 		// Parse RX power
 		rxPowerCurrent := mlxout.Get("result.output.Module Info.Rx Power Current [dBm]").String()
 		if matches := valuesRegex.FindStringSubmatch(rxPowerCurrent); matches != nil {

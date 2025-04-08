@@ -50,7 +50,7 @@ func TestActiveEthernet(t *testing.T) {
 		symbolErrors:     0,
 		linkDown:         0,
 		linkRecovery:     0,
-		lastClearTime:    6863.7*60,
+		lastClearTime:    6863.7 * 60,
 		rawErrors:        []float64{54126, 3782, 1578, 5277},
 	}
 	assert.Equal(t, expected, result)
@@ -89,8 +89,8 @@ func TestActiveInfiniband(t *testing.T) {
 		transferDistance: 0.0,
 		rxPower:          []float64{-3, -2, -1, 0},
 		txPower:          []float64{1, 2, 3, 4},
-		snrMedia:         []float64{4,3,2,1},
-		snrHost:          []float64{8,7,6,5},
+		snrMedia:         []float64{4, 3, 2, 1},
+		snrHost:          []float64{8, 7, 6, 5},
 		attenuation:      map[string]float64{},
 		effectiveBer:     15e-255,
 		effectiveErrors:  1,
@@ -99,7 +99,7 @@ func TestActiveInfiniband(t *testing.T) {
 		symbolErrors:     4,
 		linkDown:         2,
 		linkRecovery:     3,
-		lastClearTime:    6750.4*60,
+		lastClearTime:    6750.4 * 60,
 		rawErrors:        []float64{6045465, 14059590, 18460013, 5651086},
 	}
 	assert.Equal(t, expected, result)
