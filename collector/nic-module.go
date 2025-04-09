@@ -654,12 +654,26 @@ func discoverMellanoxDevices() ([]DeviceInfo, error) {
 func (n *NicModuleCollector) runMlxlink(hostname string, systemserial string, slot string, device DeviceInfo, resp chan runMlxlinkResponse) {
 	cmd := exec.Command("mlxlink", "-json", "-d", device.pciAddress, "-m", "-c", "--rx_fec_histogram", "--show_histogram")
 	output, err := cmd.CombinedOutput()
+	mlxout := gjson.Parse(string(output))
+	valid_output := false
 	if err == nil {
-		metrics := parseOutput(string(output), hostname, systemserial, slot, device)
-		resp <- runMlxlinkResponse{metrics, false}
-
+		valid_output = true
 	} else {
+		// Check and see if there was an error relating to the FEC histogram param - if there is, we can still provide all
+		//  of the other metrics
+		if mlxout.Get("result.output.Operational Info.State").String() == "Active" {
+			status_message := mlxout.Get("result.output.status.message").String()
+			if strings.Contains(status_message, "FEC Histogram is valid with active link operation only") {
+				valid_output = true
+			}
+		}
 		log.Errorf("Error running mlxlink -d %s: %s\n", device.pciAddress, err)
+	}
+
+	if valid_output {
+		metrics := parseOutput(mlxout, hostname, systemserial, slot, device)
+		resp <- runMlxlinkResponse{metrics, false}
+	} else {
 		resp <- runMlxlinkResponse{PortMetrics{}, true}
 	}
 }
@@ -841,7 +855,7 @@ func lookupKey(lookupMap map[string]string, lookupValue string) (string, bool) {
 }
 
 // Parse mlxlink data and set metrics
-func parseOutput(output string, hostname string, systemserial string, slot string, device DeviceInfo) PortMetrics {
+func parseOutput(mlxout gjson.Result, hostname string, systemserial string, slot string, device DeviceInfo) PortMetrics {
 	var metrics PortMetrics
 
 	metrics.mode = device.mode
@@ -850,8 +864,6 @@ func parseOutput(output string, hostname string, systemserial string, slot strin
 	metrics.hostname = hostname
 	metrics.systemserial = systemserial
 	metrics.slot = slot
-
-	mlxout := gjson.Parse(output)
 
 	valuesRegex := regexp.MustCompile(`([\d\.,\-]+)`)
 	speedsRegex := regexp.MustCompile(`Attenuation \((.*)\) \[dB\]`)
