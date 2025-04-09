@@ -86,8 +86,6 @@ type PortMetrics struct {
 }
 
 type NicModuleCollector struct {
-	CachedSlots []SlotInfo
-
 	cachedMetricsReads  chan readCachedMetricsRequest
 	cachedMetricsWrites chan []PortMetrics
 
@@ -228,6 +226,22 @@ var dataPathStateValues = map[string]float64{
 	"DPTxTurnOn":    5,
 	"DPTxTurnOff":   6,
 	"DPInitialized": 7,
+}
+
+type Slots []SlotInfo
+
+func (s *Slots) getSlot(pciAddress string) string {
+	slotAddress := pciAddress[:len(pciAddress)-1] + "0"
+	for _, slot := range *s {
+		if slot.BusAddress == slotAddress {
+			if utf8.ValidString(slot.SlotNumber) {
+				return slot.SlotNumber
+			} else {
+				return "unknown"
+			}
+		}
+	}
+	return ""
 }
 
 func NewNicModuleCollector(namespace string) *NicModuleCollector {
@@ -533,13 +547,14 @@ func (n *NicModuleCollector) UpdateMetrics() {
 	pciAddress2PhysicalDeviceInfo := getPciAddress2PhysicalDevice()
 	hostname := getHostName()
 	systemserial := getSystemSerial()
+	slots := getSlots()
 
 	responses := make(chan runMlxlinkResponse)
 	for _, device := range devices {
 		physicalDeviceInfo := pciAddress2PhysicalDeviceInfo[device.pciAddress]
 		device.caName = physicalDeviceInfo.caName
 		device.netDev = physicalDeviceInfo.netDev
-		slot := n.getSlot(device)
+		slot := slots.getSlot(device.pciAddress)
 		go n.runMlxlink(hostname, systemserial, slot, device, responses)
 	}
 	metrics := make([]PortMetrics, len(devices))
@@ -552,14 +567,6 @@ func (n *NicModuleCollector) UpdateMetrics() {
 		}
 	}
 	n.cacheMetrics(metrics)
-}
-
-func (n *NicModuleCollector) getSlot(device DeviceInfo) string {
-	slot := n.matchMellanoxSlot(device.pciAddress)
-	if !utf8.ValidString(slot) {
-		slot = "unknown"
-	}
-	return slot
 }
 
 func getSystemSerial() string {
@@ -668,14 +675,21 @@ func getNetDevice2IbDevice() map[string]string {
 	return result
 
 }
-func (n *NicModuleCollector) UpdateSlotInfo() {
+
+func getSlots() Slots {
 	cmd := exec.Command("dmidecode", "-t", "slot")
 	output, err := cmd.Output()
 	if err != nil {
 		log.Errorf("Error executing dmidecode: %s", err)
-		return
+		return Slots{}
 	}
-	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	return parseSlots(string(output))
+
+}
+
+func parseSlots(output string) Slots {
+	result := Slots{}
+	scanner := bufio.NewScanner(strings.NewReader(output))
 	var slot SlotInfo
 	designationPattern := regexp.MustCompile(`Designation:\s+(.+)`)
 	busAddressPattern := regexp.MustCompile(`Bus Address:\s+(.+)`)
@@ -687,7 +701,7 @@ func (n *NicModuleCollector) UpdateSlotInfo() {
 		if strings.Contains(line, "System Slot Information") {
 			// When new slot info starts, append the previous slot if valid
 			if slot.Designation != "" {
-				n.CachedSlots = append(n.CachedSlots, slot)
+				result = append(result, slot)
 			}
 			slot = SlotInfo{} // Reset for new slot info
 		}
@@ -709,35 +723,10 @@ func (n *NicModuleCollector) UpdateSlotInfo() {
 
 	// Append the last slot if valid
 	if slot.Designation != "" {
-		n.CachedSlots = append(n.CachedSlots, slot)
+		result = append(result, slot)
 	}
 
-}
-
-func (n *NicModuleCollector) findSlotByBusAddress(busAddress string) (SlotInfo, bool) {
-	for _, slot := range n.CachedSlots {
-		if slot.BusAddress == busAddress {
-			return slot, true
-		}
-	}
-	return SlotInfo{}, false
-}
-
-func (n *NicModuleCollector) matchMellanoxSlot(mellanoxPciAddress string) string {
-	pciAsArray := strings.Split(mellanoxPciAddress, ".")
-	slotAddress := mellanoxPciAddress
-	if pciAsArray[len(pciAsArray)-1] == "1" {
-		log.Debugf("Found port for %s is 1, changing to 0\n", mellanoxPciAddress)
-		pciAsArray[len(pciAsArray)-1] = "0"
-		slotAddress = strings.Join(pciAsArray, ".")
-	}
-
-	// Find the matching slot
-	if slot, found := n.findSlotByBusAddress(slotAddress); found {
-		log.Debugf("Found slot for address %s: %s\n", mellanoxPciAddress, slot.SlotNumber)
-		return slot.SlotNumber
-	}
-	return ""
+	return result
 }
 
 // Get a map of device to pci address from /sys/class/{className}/{device}/device links

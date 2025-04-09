@@ -21,11 +21,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"os"
 	sprom "smc-exporter/collector"
 	"strings"
 	"time"
-	"fmt"
-	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
@@ -67,16 +67,10 @@ func main() {
 			time.Sleep(time.Duration(interval) * time.Second)
 		}
 	}()
-	go func() {
-		for {
-			se.NicModule.UpdateSlotInfo()
-			time.Sleep(time.Duration(300) * time.Second)
-		}
-	}()
 	reg.MustRegister(se)
 	sh := SmcPrometheusHandler(reg)
 	router.GET("/metrics", sh)
-	log.Println("Starting smc-exporter on port " + port, "version", version.Info())
+	log.Println("Starting smc-exporter on port "+port, "version", version.Info())
 	log.Info("Build context", "build_context", version.BuildContext())
 	if err := router.Run(":" + port); err != nil {
 		log.Errorf("Error starting server: %v\n", err)
