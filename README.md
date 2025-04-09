@@ -2,17 +2,19 @@
 ## Building
 Pre-requisites:
 - go 1.21 or later
+- bash
 ```
-go mod tidy
-go build smc-exporter.go
+./build.sh
 ```
+
 ## Pre-built Binary
 A pre-built binary for linux amd64 servers is available to download in [Releases](https://github.com/smc-public/smc-exporter/releases)
 
 ## Installation
-After a binary is built or downloaded, you can simply copy it and use the example systemd service file to run as a service. eg.
+After a binary is built or downloaded, you can simply copy it and use the example systemd service file to run as a service. For example, for version 0.7.0:
+
 ```
-cp smc-exporter /usr/local/bin/smc-exporter
+cp smc-exporter-0.7.0-linux-amd64 /usr/local/bin/smc-exporter
 cp smc-exporter.service /usr/lib/systemd/system
 systemctl daemon-reload
 systemctl enable smc-exporter
