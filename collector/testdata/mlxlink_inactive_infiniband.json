@@ -1,0 +1,232 @@
+{
+	"result" : 
+	{
+			"output" : 
+			{
+					"Module Info" : 
+					{
+							"Active Set Host Compliance Code" : "IB NDR",
+							"Active Set Media Compliance Code" : "400G-SR4",
+							"Attenuation (5g,7g,12g,25g) [dB]" : "N/A",
+							"Bias Current [mA]" : "8.630,8.660,8.540,8.600 [6.5..9.5]",
+							"CDR RX" : 
+							{
+									"values" : 
+									[
+											"ON",
+											"ON",
+											"ON",
+											"ON"
+									]
+							},
+							"CDR TX" : 
+							{
+									"values" : 
+									[
+											"ON",
+											"ON",
+											"ON",
+											"ON"
+									]
+							},
+							"Cable Breakout" : "Unspecified",
+							"Cable Rx AMP" : "1",
+							"Cable Rx Emphasis (Pre)" : "0",
+							"Cable Rx Post Emphasis" : "0",
+							"Cable Technology" : "850 nm VCSEL",
+							"Cable Tx Equalization" : "0",
+							"Cable Type" : "Optical Module (separated)",
+							"Compliance" : "IB NDR,400G-SR4",
+							"DataPath FW Fault" : "0",
+							"DataPath state [per lane]" : 
+							{
+									"values" : 
+									[
+											"DPActivated",
+											"DPActivated",
+											"DPActivated",
+											"DPActivated"
+									]
+							},
+							"Digital Diagnostic Monitoring" : "Yes",
+							"Error Code Response" : "ConfigUndefined",
+							"FW Version" : "3.129.0",
+							"IB Cable Width" : "1x,2x,4x",
+							"Identifier" : "OSFP",
+							"LOS Alarm" : "N/A",
+							"Linear Direct Drive" : "0",
+							"MAX Power" : "32",
+							"Manufacturing Date" : "22_11_24",
+							"Memory Map Revision" : "82",
+							"Module FW Fault" : "0",
+							"Module State" : "Ready state",
+							"Nominal bit rate" : "N/A",
+							"OUI" : "Other",
+							"Power Class" : "8.0 W max",
+							"Rev" : "01",
+							"Rx CDR LOL [per lane]" : 
+							{
+									"values" : 
+									[
+											"0",
+											"0",
+											"0",
+											"0"
+									]
+							},
+							"Rx LOS [per lane]" : 
+							{
+									"values" : 
+									[
+											"0",
+											"0",
+											"0",
+											"0"
+									]
+							},
+							"Rx Output Valid [per lane]" : 
+							{
+									"values" : 
+									[
+											"0",
+											"0",
+											"0",
+											"0"
+									]
+							},
+							"Rx Power Current [dBm]" : "-4.191,-4.377,-4.067,-4.056 [-7.423..5]",
+							"Rx Power Type" : "Average power",
+							"SMF Length" : "N/A",
+							"SNR Host Lanes [dB]" : 
+							{
+									"values" : 
+									[
+											"N/A"
+									]
+							},
+							"SNR Media Lanes [dB]" : 
+							{
+									"values" : 
+									[
+											"N/A"
+									]
+							},
+							"Temperature [C]" : "37 [-10..80]",
+							"Transfer Distance [m]" : "0.0",
+							"Tx Adaptive EQ Fault [per lane]" : 
+							{
+									"values" : 
+									[
+											"0",
+											"0",
+											"0",
+											"0"
+									]
+							},
+							"Tx CDR LOL [per lane]" : 
+							{
+									"values" : 
+									[
+											"0",
+											"0",
+											"0",
+											"0"
+									]
+							},
+							"Tx Fault [per lane]" : 
+							{
+									"values" : 
+									[
+											"0",
+											"0",
+											"0",
+											"0"
+									]
+							},
+							"Tx LOS [per lane]" : 
+							{
+									"values" : 
+									[
+											"0",
+											"0",
+											"0",
+											"0"
+									]
+							},
+							"Tx Power Current [dBm]" : "1.867,1.940,1.861,1.706 [-5.607..5]",
+							"Vendor Name" : "Firmus",
+							"Vendor Part Number" : "OSFP400I-SR4",
+							"Vendor Serial Number" : "5C2410311681",
+							"Voltage [mV]" : "3259.4 [2970..3630]",
+							"Wavelength Tolerance" : "10.0nm",
+							"Wavelength [nm]" : "858"
+					},
+					"Operational Info" : 
+					{
+							"Auto Negotiation" : "ON",
+							"FEC" : "N/A",
+							"Loopback Mode" : "No Loopback",
+							"Physical state" : "ETH_AN_FSM_ENABLE",
+							"Speed" : "N/A",
+							"State" : "Polling",
+							"Width" : "N/A"
+					},
+					"Physical Counters and BER Info" : 
+					{
+							"Effective Physical BER" : "N/A",
+							"Effective Physical Errors" : "N/A",
+							"Link Down Counter" : "N/A",
+							"Link Error Recovery Counter" : "N/A",
+							"Raw Physical BER" : "N/A",
+							"Raw Physical Errors Per Lane" : 
+							{
+									"values" : 
+									[
+											"N/A"
+									]
+							},
+							"Symbol BER" : "N/A",
+							"Symbol Errors" : "N/A",
+							"Time Since Last Clear [Min]" : "N/A"
+					},
+					"Supported Info" : 
+					{
+							"Enabled Link Speed" : 
+							{
+									"mask" : "0x00000080",
+									"values" : 
+									[
+											"NDR"
+									]
+							},
+							"Supported Cable Speed" : 
+							{
+									"mask" : "0x000000e0",
+									"values" : 
+									[
+											"NDR",
+											"HDR",
+											"EDR"
+									]
+							}
+					},
+					"Tool Information" : 
+					{
+							"Firmware Version" : "28.41.1000",
+							"MFT Version" : "mft 4.26.1-3",
+							"amBER Version" : "2.22"
+					},
+					"Troubleshooting Info" : 
+					{
+							"Group Opcode" : "PHY FW",
+							"Recommendation" : "signal not detected",
+							"Status Opcode" : "57"
+					}
+			}
+	},
+	"status" : 
+	{
+			"code" : 1,
+			"message" : "Fartypoop:\nFEC Histogram is valid with active link operation only\n"
+	}
+}
