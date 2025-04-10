@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tidwall/gjson"
 )
 
 func TestActiveEthernetNoFecHistogram(t *testing.T) {
@@ -17,7 +18,7 @@ func TestActiveEthernetNoFecHistogram(t *testing.T) {
 		caName:     "mlx5_0",
 		netDev:     "ib0",
 	}
-	result := parseOutput(testMlxlinkOutput, "hostname", "systemserial", "slot", deviceInfo)
+	result := parseOutput(gjson.Parse(testMlxlinkOutput), "hostname", "systemserial", "slot", deviceInfo)
 	expected := PortMetrics{
 		hostname:         "hostname",
 		systemserial:     "systemserial",
@@ -68,7 +69,7 @@ func TestActiveEthernet(t *testing.T) {
 		caName:     "mlx5_0",
 		netDev:     "ib0",
 	}
-	result := parseOutput(testMlxlinkOutput, "hostname", "systemserial", "slot", deviceInfo)
+	result := parseOutput(gjson.Parse(testMlxlinkOutput), "hostname", "systemserial", "slot", deviceInfo)
 	expected := PortMetrics{
 		hostname:         "hostname",
 		systemserial:     "systemserial",
@@ -119,7 +120,7 @@ func TestActiveInfiniband(t *testing.T) {
 		caName:     "mlx5_0",
 		netDev:     "ib0",
 	}
-	result := parseOutput(testMlxlinkOutput, "hostname", "systemserial", "slot", deviceInfo)
+	result := parseOutput(gjson.Parse(testMlxlinkOutput), "hostname", "systemserial", "slot", deviceInfo)
 	expected := PortMetrics{
 		hostname:         "hostname",
 		systemserial:     "systemserial",
@@ -156,6 +157,57 @@ func TestActiveInfiniband(t *testing.T) {
 		lastClearTime:    6750.4 * 60,
 		rawErrors:        []float64{6045465, 14059590, 18460013, 5651086},
 		fecErrors:        []float64{157550930963675, 5638939059, 47990561, 5667737, 1568982, 5217, 2786, 58},
+	}
+	assert.Equal(t, expected, result)
+}
+
+func TestInactiveInfiniband(t *testing.T) {
+	bytes, _ := os.ReadFile("testdata/mlxlink_inactive_infiniband.json")
+	testMlxlinkOutput := string(bytes)
+	os.Stdout.WriteString("DATA: " + testMlxlinkOutput + "\n")
+	deviceInfo := DeviceInfo{
+		pciAddress: "1b:00.0",
+		mode:       "infiniband",
+		caName:     "mlx5_0",
+		netDev:     "ib0",
+	}
+	result := parseOutput(gjson.Parse(testMlxlinkOutput), "hostname", "systemserial", "slot", deviceInfo)
+	expected := PortMetrics{
+		hostname:         "hostname",
+		systemserial:     "systemserial",
+		slot:             "slot",
+		mode:             "infiniband",
+		caname:           "mlx5_0",
+		netdev:           "ib0",
+		state:            2,
+		physicalState:    10,
+		speed:            0,
+		width:            0,
+		serial:           "5C2410311681",
+		vendor:           "Firmus",
+		partNumber:       "OSFP400I-SR4",
+		moduleState:      3,
+		dataPathState:    []float64{4, 4, 4, 4},
+		biasCurrent:      []float64{8.63, 8.66, 8.54, 8.6},
+		temperature:      37,
+		voltage:          3259.4,
+		wavelength:       858,
+		transferDistance: 0.0,
+		rxPower:          []float64{-4.191, -4.377, -4.067, -4.056},
+		txPower:          []float64{1.867, 1.94, 1.861, 1.706},
+		snrMedia:         []float64{},
+		snrHost:          []float64{},
+		attenuation:      map[string]float64{},
+		effectiveBer:     0,
+		effectiveErrors:  0,
+		rawBer:           0,
+		symbolBer:        0,
+		symbolErrors:     0,
+		linkDown:         0,
+		linkRecovery:     0,
+		lastClearTime:    0,
+		rawErrors:        []float64{0},
+		fecErrors:        []float64{},
 	}
 	assert.Equal(t, expected, result)
 }
