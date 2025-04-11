@@ -661,7 +661,7 @@ func (n *NicModuleCollector) runMlxlink(hostname string, systemserial string, sl
 	} else {
 		// Check and see if there was an error relating to the FEC histogram param - if there is, we can still provide all
 		//  of the other metrics
-		status_message := mlxout.Get("result.output.status.message").String()
+		status_message := mlxout.Get("result.status.message").String()
 		if strings.Contains(status_message, "FEC Histogram is valid with active link operation only") {
 			valid_output = true
 		}
