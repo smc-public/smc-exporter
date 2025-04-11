@@ -79,6 +79,7 @@ type PortMetrics struct {
 	effectiveErrors  float64
 	rawBer           float64
 	rawErrors        []float64
+	fecErrors        []float64
 	symbolBer        float64
 	symbolErrors     float64
 	linkDown         float64
@@ -112,6 +113,7 @@ type NicModuleCollector struct {
 	effectiveErrorsDesc  *prometheus.Desc
 	rawBerDesc           *prometheus.Desc
 	rawErrorsDesc        *prometheus.Desc
+	fecErrorsDesc        *prometheus.Desc
 	symbolBerDesc        *prometheus.Desc
 	symbolErrorsDesc     *prometheus.Desc
 	linkDownDesc         *prometheus.Desc
@@ -221,18 +223,19 @@ var moduleStateValues = map[string]float64{
 }
 
 var dataPathStateValues = map[string]float64{
-    "N/A": 0,
-    "DPDeactivated": 1,
-    "DPInit": 2,
-    "DPDeinit": 3,
-    "DPActivated": 4,
-    "DPTxTurnOn": 5,
-    "DPTxTurnOff": 6,
-    "DPInitialized": 7,
+	"N/A":           0,
+	"DPDeactivated": 1,
+	"DPInit":        2,
+	"DPDeinit":      3,
+	"DPActivated":   4,
+	"DPTxTurnOn":    5,
+	"DPTxTurnOff":   6,
+	"DPInitialized": 7,
 }
 
 func NewNicModuleCollector(namespace string) *NicModuleCollector {
 	laneLabel := []string{"lane"}
+	binLabel := []string{"bin"}
 	speedLabel := []string{"speed"}
 	stdLabels := []string{"mode", "caname", "netdev", "serial", "hostname", "product_serial", "vendor", "part_number", "slot"}
 	collector := &NicModuleCollector{
@@ -379,6 +382,13 @@ func NewNicModuleCollector(namespace string) *NicModuleCollector {
 			nil,
 		),
 
+		fecErrorsDesc: prometheus.NewDesc(
+			namespace+"_fec_errors",
+			"FEC error bins",
+			append(binLabel, stdLabels...),
+			nil,
+		),
+
 		symbolBerDesc: prometheus.NewDesc(
 			namespace+"_symbol_bit_error_rate",
 			"Symbol bit error rate",
@@ -439,6 +449,7 @@ func (n *NicModuleCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- n.effectiveErrorsDesc
 	ch <- n.rawBerDesc
 	ch <- n.rawErrorsDesc
+	ch <- n.fecErrorsDesc
 	ch <- n.symbolBerDesc
 	ch <- n.symbolErrorsDesc
 	ch <- n.linkDownDesc
@@ -493,6 +504,11 @@ func (n *NicModuleCollector) Collect(ch chan<- prometheus.Metric) {
 		for laneIdx, rawErrors := range port.rawErrors {
 			laneValue := []string{strconv.Itoa(laneIdx + 1)}
 			ch <- prometheus.MustNewConstMetric(n.rawErrorsDesc, prometheus.CounterValue, rawErrors, append(laneValue, stdLabelValues...)...)
+		}
+
+		for binIdx, fecErrors := range port.fecErrors {
+			binValue := []string{strconv.Itoa(binIdx + 1)}
+			ch <- prometheus.MustNewConstMetric(n.fecErrorsDesc, prometheus.CounterValue, fecErrors, append(binValue, stdLabelValues...)...)
 		}
 		if port.mode == "infiniband" {
 			ch <- prometheus.MustNewConstMetric(n.symbolBerDesc, prometheus.GaugeValue, port.symbolBer, stdLabelValues...)
@@ -636,14 +652,26 @@ func discoverMellanoxDevices() ([]DeviceInfo, error) {
 }
 
 func (n *NicModuleCollector) runMlxlink(hostname string, systemserial string, slot string, device DeviceInfo, resp chan runMlxlinkResponse) {
-	cmd := exec.Command("mlxlink", "-json", "-d", device.pciAddress, "-m", "-c")
+	cmd := exec.Command("mlxlink", "-json", "-d", device.pciAddress, "-m", "-c", "--rx_fec_histogram", "--show_histogram")
 	output, err := cmd.CombinedOutput()
+	mlxout := gjson.Parse(string(output))
+	valid_output := false
 	if err == nil {
-		metrics := parseOutput(string(output), hostname, systemserial, slot, device)
-		resp <- runMlxlinkResponse{metrics, false}
-
+		valid_output = true
 	} else {
+		// Check and see if there was an error relating to the FEC histogram param - if there is, we can still provide all
+		//  of the other metrics
+		status_message := mlxout.Get("result.output.status.message").String()
+		if strings.Contains(status_message, "FEC Histogram is valid with active link operation only") {
+			valid_output = true
+		}
 		log.Errorf("Error running mlxlink -d %s: %s\n", device.pciAddress, err)
+	}
+
+	if valid_output {
+		metrics := parseOutput(mlxout, hostname, systemserial, slot, device)
+		resp <- runMlxlinkResponse{metrics, false}
+	} else {
 		resp <- runMlxlinkResponse{PortMetrics{}, true}
 	}
 }
@@ -825,7 +853,7 @@ func lookupKey(lookupMap map[string]string, lookupValue string) (string, bool) {
 }
 
 // Parse mlxlink data and set metrics
-func parseOutput(output string, hostname string, systemserial string, slot string, device DeviceInfo) PortMetrics {
+func parseOutput(mlxout gjson.Result, hostname string, systemserial string, slot string, device DeviceInfo) PortMetrics {
 	var metrics PortMetrics
 
 	metrics.mode = device.mode
@@ -834,8 +862,6 @@ func parseOutput(output string, hostname string, systemserial string, slot strin
 	metrics.hostname = hostname
 	metrics.systemserial = systemserial
 	metrics.slot = slot
-
-	mlxout := gjson.Parse(output)
 
 	valuesRegex := regexp.MustCompile(`([\d\.,\-]+)`)
 	speedsRegex := regexp.MustCompile(`Attenuation \((.*)\) \[dB\]`)
@@ -887,6 +913,7 @@ func parseOutput(output string, hostname string, systemserial string, slot strin
 	metrics.txPower = []float64{}
 	metrics.snrMedia = []float64{}
 	metrics.snrHost = []float64{}
+	metrics.fecErrors = []float64{}
 	metrics.biasCurrent = []float64{}
 
 	temperature := mlxout.Get("result.output.Module Info.Temperature [C]").String()
@@ -916,7 +943,7 @@ func parseOutput(output string, hostname string, systemserial string, slot strin
 		metrics.dataPathState = make([]float64, len(dataPathStatePerLane))
 		for i, dataPathState := range dataPathStatePerLane {
 			metrics.dataPathState[i] = dataPathStateValues[dataPathState.String()]
-		}	
+		}
 		// Parse RX power
 		rxPowerCurrent := mlxout.Get("result.output.Module Info.Rx Power Current [dBm]").String()
 		if matches := valuesRegex.FindStringSubmatch(rxPowerCurrent); matches != nil {
@@ -972,6 +999,21 @@ func parseOutput(output string, hostname string, systemserial string, slot strin
 	metrics.rawErrors = make([]float64, len(rawErrorsPerLane))
 	for i, rawErrors := range rawErrorsPerLane {
 		metrics.rawErrors[i] = rawErrors.Float()
+	}
+
+	if mlxout.Get("result.output.Histogram of FEC Errors").Exists() {
+		fecErrorBins := mlxout.Get("result.output.Histogram of FEC Errors")
+
+		metrics.fecErrors = make([]float64, 8)
+		for i := range 8 {
+			binJson := fecErrorBins.Get("Bin " + strconv.Itoa(i))
+			binValue, err := strconv.ParseFloat(binJson.Get("values").Array()[1].String(), 64)
+			if err != nil {
+				metrics.fecErrors[i] = -1
+			} else {
+				metrics.fecErrors[i] = binValue
+			}
+		}
 	}
 
 	if metrics.mode == "infiniband" {
