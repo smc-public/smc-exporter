@@ -57,6 +57,7 @@ type PortMetrics struct {
 	vendor       string
 	partNumber   string
 	slot         string
+	port         string
 
 	state            float64
 	physicalState    float64
@@ -247,7 +248,7 @@ func (s *Slots) getSlot(pciAddress string) string {
 func NewNicModuleCollector(namespace string) *NicModuleCollector {
 	laneLabel := []string{"lane"}
 	speedLabel := []string{"speed"}
-	stdLabels := []string{"mode", "caname", "netdev", "serial", "hostname", "product_serial", "vendor", "part_number", "slot"}
+	stdLabels := []string{"mode", "caname", "netdev", "serial", "hostname", "product_serial", "vendor", "part_number", "slot", "port"}
 	collector := &NicModuleCollector{
 		cachedMetricsReads:  make(chan readCachedMetricsRequest),
 		cachedMetricsWrites: make(chan []PortMetrics),
@@ -462,7 +463,7 @@ func (n *NicModuleCollector) Describe(ch chan<- *prometheus.Desc) {
 func (n *NicModuleCollector) Collect(ch chan<- prometheus.Metric) {
 	cachedMetrics := n.getCachedMetrics()
 	for _, port := range cachedMetrics {
-		stdLabelValues := []string{port.mode, port.caname, port.netdev, port.serial, port.hostname, port.systemserial, port.vendor, port.partNumber, port.slot}
+		stdLabelValues := []string{port.mode, port.caname, port.netdev, port.serial, port.hostname, port.systemserial, port.vendor, port.partNumber, port.slot, port.port}
 		ch <- prometheus.MustNewConstMetric(n.stateDesc, prometheus.GaugeValue, port.state, stdLabelValues...)
 		ch <- prometheus.MustNewConstMetric(n.physicalStateDesc, prometheus.GaugeValue, port.physicalState, stdLabelValues...)
 		ch <- prometheus.MustNewConstMetric(n.moduleStateDesc, prometheus.GaugeValue, port.moduleState, stdLabelValues...)
@@ -555,7 +556,11 @@ func (n *NicModuleCollector) UpdateMetrics() {
 		device.caName = physicalDeviceInfo.caName
 		device.netDev = physicalDeviceInfo.netDev
 		slot := slots.getSlot(device.pciAddress)
-		go n.runMlxlink(hostname, systemserial, slot, device, responses)
+		var port string
+		if function, ok := getFunction(device.pciAddress); ok {
+			port = strconv.Itoa(function + 1)
+		}
+		go n.runMlxlink(hostname, systemserial, slot, port, device, responses)
 	}
 	metrics := make([]PortMetrics, len(devices))
 	metricsIdx := 0
@@ -567,6 +572,17 @@ func (n *NicModuleCollector) UpdateMetrics() {
 		}
 	}
 	n.cacheMetrics(metrics)
+}
+
+func getFunction(s string) (int, bool) {
+	parts := strings.Split(s, ".")
+	if len(parts) > 0 {
+		functionStr := parts[len(parts)-1]
+		if function, err := strconv.Atoi(functionStr); err == nil {
+			return function, true
+		}
+	}
+	return 0, false
 }
 
 func getSystemSerial() string {
@@ -641,11 +657,11 @@ func discoverMellanoxDevices() ([]DeviceInfo, error) {
 	return mellanoxDevices, nil
 }
 
-func (n *NicModuleCollector) runMlxlink(hostname string, systemserial string, slot string, device DeviceInfo, resp chan runMlxlinkResponse) {
+func (n *NicModuleCollector) runMlxlink(hostname, systemserial, slot, port string, device DeviceInfo, resp chan runMlxlinkResponse) {
 	cmd := exec.Command("mlxlink", "-json", "-d", device.pciAddress, "-m", "-c") // #nosec G204
 	output, err := cmd.CombinedOutput()
 	if err == nil {
-		metrics := parseOutput(string(output), hostname, systemserial, slot, device)
+		metrics := parseOutput(string(output), hostname, systemserial, slot, port, device)
 		resp <- runMlxlinkResponse{metrics, false}
 
 	} else {
@@ -813,7 +829,7 @@ func lookupKey(lookupMap map[string]string, lookupValue string) (string, bool) {
 }
 
 // Parse mlxlink data and set metrics
-func parseOutput(output string, hostname string, systemserial string, slot string, device DeviceInfo) PortMetrics {
+func parseOutput(output, hostname, systemserial, slot, port string, device DeviceInfo) PortMetrics {
 	var metrics PortMetrics
 
 	metrics.mode = device.mode
@@ -822,6 +838,7 @@ func parseOutput(output string, hostname string, systemserial string, slot strin
 	metrics.hostname = hostname
 	metrics.systemserial = systemserial
 	metrics.slot = slot
+	metrics.port = port
 
 	mlxout := gjson.Parse(output)
 
