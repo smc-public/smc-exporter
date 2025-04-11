@@ -227,6 +227,6 @@
 	"status" : 
 	{
 			"code" : 1,
-			"message" : "Fartypoop:\nFEC Histogram is valid with active link operation only\n"
+			"message" : "Providing FEC histogram cause the following exception:\nFEC Histogram is valid with active link operation only\n"
 	}
 }
