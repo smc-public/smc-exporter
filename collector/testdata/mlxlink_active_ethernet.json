@@ -228,6 +228,62 @@
 				"Group Opcode" : "N/A",
 				"Recommendation" : "No issue was observed",
 				"Status Opcode" : "0"
+			},
+			"Histogram of FEC Errors": {
+				"Bin 0": {
+				  "values": [
+					"[0]",
+					"157550930963675"
+				  ]
+				},
+				"Bin 1": {
+				  "values": [
+					"[1]",
+					"5638939059"
+				  ]
+				},
+				"Bin 2": {
+				  "values": [
+					"[2]",
+					"47990561"
+				  ]
+				},
+				"Bin 3": {
+				  "values": [
+					"[3]",
+					"5667737"
+				  ]
+				},
+				"Bin 4": {
+				  "values": [
+					"[4]",
+					"1568982"
+				  ]
+				},
+				"Bin 5": {
+				  "values": [
+					"[5]",
+					"5217"
+				  ]
+				},
+				"Bin 6": {
+				  "values": [
+					"[6]",
+					"2786"
+				  ]
+				},
+				"Bin 7": {
+				  "values": [
+					"[7]",
+					"58"
+				  ]
+				},
+				"Header": {
+				  "values": [
+					"Range",
+					"Occurrences"
+				  ]
+				}
 			}
 		}
 	},
