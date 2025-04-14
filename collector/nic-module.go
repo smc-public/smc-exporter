@@ -1002,16 +1002,18 @@ func parseOutput(mlxout gjson.Result, hostname string, systemserial string, slot
 	}
 
 	if mlxout.Get("result.output.Histogram of FEC Errors").Exists() {
-		fecErrorBins := mlxout.Get("result.output.Histogram of FEC Errors")
-
-		metrics.fecErrors = make([]float64, 8)
-		for i := range 8 {
-			binJson := fecErrorBins.Get("Bin " + strconv.Itoa(i))
-			binValue, err := strconv.ParseFloat(binJson.Get("values").Array()[1].String(), 64)
-			if err != nil {
-				metrics.fecErrors[i] = -1
-			} else {
-				metrics.fecErrors[i] = binValue
+		fecErrorBins := mlxout.Get("result.output.Histogram of FEC Errors").Map()
+		numBins := len(fecErrorBins) - 1
+		metrics.fecErrors = make([]float64, numBins)
+		if numBins > 0 {
+			for i := range numBins {
+				binJson := fecErrorBins["Bin "+strconv.Itoa(i)]
+				binValue, err := strconv.ParseFloat(binJson.Get("values").Array()[1].String(), 64)
+				if err != nil {
+					metrics.fecErrors[i] = -1
+				} else {
+					metrics.fecErrors[i] = binValue
+				}
 			}
 		}
 	}
