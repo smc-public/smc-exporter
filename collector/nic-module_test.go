@@ -18,11 +18,12 @@ func TestActiveEthernetNoFecHistogram(t *testing.T) {
 		caName:     "mlx5_0",
 		netDev:     "ib0",
 	}
-	result := parseOutput(gjson.Parse(testMlxlinkOutput), "hostname", "systemserial", "slot", deviceInfo)
+	result := parseOutput(gjson.Parse(testMlxlinkOutput), "hostname", "systemserial", "slot", "1", deviceInfo)
 	expected := PortMetrics{
 		hostname:         "hostname",
 		systemserial:     "systemserial",
 		slot:             "slot",
+		port:             "1",
 		mode:             "ethernet",
 		caname:           "mlx5_0",
 		netdev:           "ib0",
@@ -125,7 +126,7 @@ func TestActiveInfiniband(t *testing.T) {
 	}
 
 	result := parseOutput(gjson.Parse(testMlxlinkOutput), "hostname", "systemserial", "slot", "1", deviceInfo)
-  
+
 	expected := PortMetrics{
 		hostname:         "hostname",
 		systemserial:     "systemserial",
@@ -177,11 +178,12 @@ func TestInactiveInfiniband(t *testing.T) {
 		caName:     "mlx5_0",
 		netDev:     "ib0",
 	}
-	result := parseOutput(gjson.Parse(testMlxlinkOutput), "hostname", "systemserial", "slot", deviceInfo)
+	result := parseOutput(gjson.Parse(testMlxlinkOutput), "hostname", "systemserial", "slot", "1", deviceInfo)
 	expected := PortMetrics{
 		hostname:         "hostname",
 		systemserial:     "systemserial",
 		slot:             "slot",
+		port:             "1",
 		mode:             "infiniband",
 		caname:           "mlx5_0",
 		netdev:           "ib0",

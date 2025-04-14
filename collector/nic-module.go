@@ -673,8 +673,7 @@ func discoverMellanoxDevices() ([]DeviceInfo, error) {
 	return mellanoxDevices, nil
 }
 
-
-func (n *NicModuleCollector) runMlxlink(hostname string, systemserial string, slot string, device DeviceInfo, resp chan runMlxlinkResponse) {
+func (n *NicModuleCollector) runMlxlink(hostname string, systemserial string, slot string, port string, device DeviceInfo, resp chan runMlxlinkResponse) {
 	cmd := exec.Command("mlxlink", "-json", "-d", device.pciAddress, "-m", "-c", "--rx_fec_histogram", "--show_histogram") // #nosec G204
 	output, err := cmd.CombinedOutput()
 	mlxout := gjson.Parse(string(output))
@@ -692,7 +691,7 @@ func (n *NicModuleCollector) runMlxlink(hostname string, systemserial string, sl
 	}
 
 	if valid_output {
-		metrics := parseOutput(mlxout, hostname, systemserial, slot, port device)
+		metrics := parseOutput(mlxout, hostname, systemserial, slot, port, device)
 		resp <- runMlxlinkResponse{metrics, false}
 	} else {
 		resp <- runMlxlinkResponse{PortMetrics{}, true}
