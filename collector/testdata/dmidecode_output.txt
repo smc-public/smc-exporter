@@ -1,0 +1,385 @@
+# dmidecode 3.3
+Getting SMBIOS data from sysfs.
+SMBIOS 3.3.0 present.
+
+Handle 0x0900, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 38
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Short
+	ID: 38
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:1a:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0901, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 40
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Short
+	ID: 40
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:1b:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0902, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 39
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Short
+	ID: 39
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:3c:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0903, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 37
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Short
+	ID: 37
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:4d:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0904, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 36
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Short
+	ID: 36
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:5e:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0905, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 32
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Short
+	ID: 32
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:9c:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0906, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 31
+	Type: x16 PCI Express 5
+	Current Usage: Available
+	Length: Short
+	ID: 31
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0907, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 33
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Short
+	ID: 33
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:bc:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0908, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 34
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Short
+	ID: 34
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:cc:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0909, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 35
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Short
+	ID: 35
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:dc:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x090A, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 28
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Other
+	ID: 28
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:19:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x090B, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 24
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Other
+	ID: 24
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:3b:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x090C, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 23
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Other
+	ID: 23
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:4c:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x090D, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 27
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Other
+	ID: 27
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:5d:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x090E, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 25
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Other
+	ID: 25
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:9b:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x090F, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 21
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Other
+	ID: 21
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:bb:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0910, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 26
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Other
+	ID: 26
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:cb:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0911, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe Slot 22
+	Type: x16 PCI Express 5
+	Current Usage: In Use
+	Length: Other
+	ID: 22
+	Characteristics:
+		3.3 V is provided
+		PME signal is supported
+	Bus Address: 0000:db:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0912, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe SSD Slot 7 in Bay 1
+	Type: x4 PCI Express 5 SFF-8639 (U.2)
+	Current Usage: In Use
+	Length: 2.5" drive form factor
+	Characteristics:
+		3.3 V is provided
+		Hot-plug devices are supported
+	Bus Address: 0000:18:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0913, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe SSD Slot 6 in Bay 1
+	Type: x4 PCI Express 5 SFF-8639 (U.2)
+	Current Usage: In Use
+	Length: 2.5" drive form factor
+	Characteristics:
+		3.3 V is provided
+		Hot-plug devices are supported
+	Bus Address: 0000:3a:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0914, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe SSD Slot 5 in Bay 1
+	Type: x4 PCI Express 5 SFF-8639 (U.2)
+	Current Usage: In Use
+	Length: 2.5" drive form factor
+	Characteristics:
+		3.3 V is provided
+		Hot-plug devices are supported
+	Bus Address: 0000:4b:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0915, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe SSD Slot 4 in Bay 1
+	Type: x4 PCI Express 5 SFF-8639 (U.2)
+	Current Usage: In Use
+	Length: 2.5" drive form factor
+	Characteristics:
+		3.3 V is provided
+		Hot-plug devices are supported
+	Bus Address: 0000:5c:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0916, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe SSD Slot 0 in Bay 1
+	Type: x4 PCI Express 5 SFF-8639 (U.2)
+	Current Usage: In Use
+	Length: 2.5" drive form factor
+	Characteristics:
+		3.3 V is provided
+		Hot-plug devices are supported
+	Bus Address: 0000:9a:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0917, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe SSD Slot 1 in Bay 1
+	Type: x4 PCI Express 5 SFF-8639 (U.2)
+	Current Usage: In Use
+	Length: 2.5" drive form factor
+	Characteristics:
+		3.3 V is provided
+		Hot-plug devices are supported
+	Bus Address: 0000:ba:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0918, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe SSD Slot 3 in Bay 1
+	Type: x4 PCI Express 5 SFF-8639 (U.2)
+	Current Usage: In Use
+	Length: 2.5" drive form factor
+	Characteristics:
+		3.3 V is provided
+		Hot-plug devices are supported
+	Bus Address: 0000:ca:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+
+Handle 0x0919, DMI type 9, 24 bytes
+System Slot Information
+	Designation: PCIe SSD Slot 2 in Bay 1
+	Type: x4 PCI Express 5 SFF-8639 (U.2)
+	Current Usage: In Use
+	Length: 2.5" drive form factor
+	Characteristics:
+		3.3 V is provided
+		Hot-plug devices are supported
+	Bus Address: 0000:da:00.0
+	Data Bus Width: 0
+	Peer Devices: 0
+	Height: Not applicable
+

@@ -69,11 +69,14 @@ func TestActiveEthernet(t *testing.T) {
 		caName:     "mlx5_0",
 		netDev:     "ib0",
 	}
-	result := parseOutput(gjson.Parse(testMlxlinkOutput), "hostname", "systemserial", "slot", deviceInfo)
+
+	result := parseOutput(gjson.Parse(testMlxlinkOutput), "hostname", "systemserial", "slot", "1", deviceInfo)
+
 	expected := PortMetrics{
 		hostname:         "hostname",
 		systemserial:     "systemserial",
 		slot:             "slot",
+		port:             "1",
 		mode:             "ethernet",
 		caname:           "mlx5_0",
 		netdev:           "ib0",
@@ -120,11 +123,14 @@ func TestActiveInfiniband(t *testing.T) {
 		caName:     "mlx5_0",
 		netDev:     "ib0",
 	}
-	result := parseOutput(gjson.Parse(testMlxlinkOutput), "hostname", "systemserial", "slot", deviceInfo)
+
+	result := parseOutput(gjson.Parse(testMlxlinkOutput), "hostname", "systemserial", "slot", "1", deviceInfo)
+  
 	expected := PortMetrics{
 		hostname:         "hostname",
 		systemserial:     "systemserial",
 		slot:             "slot",
+		port:             "1",
 		mode:             "infiniband",
 		caname:           "mlx5_0",
 		netdev:           "ib0",
@@ -210,4 +216,174 @@ func TestInactiveInfiniband(t *testing.T) {
 		fecErrors:        []float64{},
 	}
 	assert.Equal(t, expected, result)
+}
+
+func TestParseSlots(t *testing.T) {
+	bytes, _ := os.ReadFile("testdata/dmidecode_output.txt")
+	testDmiDecodeOutput := string(bytes)
+	result := parseSlots(testDmiDecodeOutput)
+	expected := Slots{
+		SlotInfo{
+			"PCIe Slot 38",
+			"0000:1a:00.0",
+			"38",
+		},
+		SlotInfo{
+			"PCIe Slot 40",
+			"0000:1b:00.0",
+			"40",
+		},
+		SlotInfo{
+			"PCIe Slot 39",
+			"0000:3c:00.0",
+			"39",
+		},
+		SlotInfo{
+			"PCIe Slot 37",
+			"0000:4d:00.0",
+			"37",
+		},
+		SlotInfo{
+			"PCIe Slot 36",
+			"0000:5e:00.0",
+			"36",
+		},
+		SlotInfo{
+			"PCIe Slot 32",
+			"0000:9c:00.0",
+			"32",
+		},
+		SlotInfo{
+			"PCIe Slot 31",
+			"",
+			"31",
+		},
+		SlotInfo{
+			"PCIe Slot 33",
+			"0000:bc:00.0",
+			"33",
+		},
+		SlotInfo{
+			"PCIe Slot 34",
+			"0000:cc:00.0",
+			"34",
+		},
+		SlotInfo{
+			"PCIe Slot 35",
+			"0000:dc:00.0",
+			"35",
+		},
+		SlotInfo{
+			"PCIe Slot 28",
+			"0000:19:00.0",
+			"28",
+		},
+		SlotInfo{
+			"PCIe Slot 24",
+			"0000:3b:00.0",
+			"24",
+		},
+		SlotInfo{
+			"PCIe Slot 23",
+			"0000:4c:00.0",
+			"23",
+		},
+		SlotInfo{
+			"PCIe Slot 27",
+			"0000:5d:00.0",
+			"27",
+		},
+		SlotInfo{
+			"PCIe Slot 25",
+			"0000:9b:00.0",
+			"25",
+		},
+		SlotInfo{
+			"PCIe Slot 21",
+			"0000:bb:00.0",
+			"21",
+		},
+		SlotInfo{
+			"PCIe Slot 26",
+			"0000:cb:00.0",
+			"26",
+		},
+		SlotInfo{
+			"PCIe Slot 22",
+			"0000:db:00.0",
+			"22",
+		},
+		SlotInfo{
+			"PCIe SSD Slot 7 in Bay 1",
+			"0000:18:00.0",
+			"7",
+		},
+		SlotInfo{
+			"PCIe SSD Slot 6 in Bay 1",
+			"0000:3a:00.0",
+			"6",
+		},
+		SlotInfo{
+			"PCIe SSD Slot 5 in Bay 1",
+			"0000:4b:00.0",
+			"5",
+		},
+		SlotInfo{
+			"PCIe SSD Slot 4 in Bay 1",
+			"0000:5c:00.0",
+			"4",
+		},
+		SlotInfo{
+			"PCIe SSD Slot 0 in Bay 1",
+			"0000:9a:00.0",
+			"0",
+		},
+		SlotInfo{
+			"PCIe SSD Slot 1 in Bay 1",
+			"0000:ba:00.0",
+			"1",
+		},
+		SlotInfo{
+			"PCIe SSD Slot 3 in Bay 1",
+			"0000:ca:00.0",
+			"3",
+		},
+		SlotInfo{
+			"PCIe SSD Slot 2 in Bay 1",
+			"0000:da:00.0",
+			"2",
+		},
+	}
+	assert.Equal(t, expected, result)
+
+}
+
+var testSlots = Slots{
+	SlotInfo{
+		"PCIe Slot 38",
+		"0000:1a:00.0",
+		"38",
+	},
+	SlotInfo{
+		"PCIe Slot 40",
+		"0000:1b:00.0",
+		"40",
+	},
+	SlotInfo{
+		"PCIe Slot 39",
+		"0000:3c:00.0",
+		"39",
+	},
+}
+
+func TestGetSlotInfoPort0(t *testing.T) {
+	result := testSlots.getSlot("0000:1b:00.0")
+	assert.Equal(t, "40", result)
+
+}
+
+func TestGetSlotInfoPort1(t *testing.T) {
+	result := testSlots.getSlot("0000:1b:00.1")
+	assert.Equal(t, "40", result)
+
 }

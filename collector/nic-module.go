@@ -21,7 +21,6 @@ package collector
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -58,6 +57,7 @@ type PortMetrics struct {
 	vendor       string
 	partNumber   string
 	slot         string
+	port         string
 
 	state            float64
 	physicalState    float64
@@ -88,8 +88,6 @@ type PortMetrics struct {
 }
 
 type NicModuleCollector struct {
-	CachedSlots []SlotInfo
-
 	cachedMetricsReads  chan readCachedMetricsRequest
 	cachedMetricsWrites chan []PortMetrics
 
@@ -233,11 +231,27 @@ var dataPathStateValues = map[string]float64{
 	"DPInitialized": 7,
 }
 
+type Slots []SlotInfo
+
+func (s *Slots) getSlot(pciAddress string) string {
+	slotAddress := pciAddress[:len(pciAddress)-1] + "0"
+	for _, slot := range *s {
+		if slot.BusAddress == slotAddress {
+			if utf8.ValidString(slot.SlotNumber) {
+				return slot.SlotNumber
+			} else {
+				return "unknown"
+			}
+		}
+	}
+	return ""
+}
+
 func NewNicModuleCollector(namespace string) *NicModuleCollector {
 	laneLabel := []string{"lane"}
 	binLabel := []string{"bin"}
 	speedLabel := []string{"speed"}
-	stdLabels := []string{"mode", "caname", "netdev", "serial", "hostname", "product_serial", "vendor", "part_number", "slot"}
+	stdLabels := []string{"mode", "caname", "netdev", "serial", "hostname", "product_serial", "vendor", "part_number", "slot", "port"}
 	collector := &NicModuleCollector{
 		cachedMetricsReads:  make(chan readCachedMetricsRequest),
 		cachedMetricsWrites: make(chan []PortMetrics),
@@ -460,7 +474,7 @@ func (n *NicModuleCollector) Describe(ch chan<- *prometheus.Desc) {
 func (n *NicModuleCollector) Collect(ch chan<- prometheus.Metric) {
 	cachedMetrics := n.getCachedMetrics()
 	for _, port := range cachedMetrics {
-		stdLabelValues := []string{port.mode, port.caname, port.netdev, port.serial, port.hostname, port.systemserial, port.vendor, port.partNumber, port.slot}
+		stdLabelValues := []string{port.mode, port.caname, port.netdev, port.serial, port.hostname, port.systemserial, port.vendor, port.partNumber, port.slot, port.port}
 		ch <- prometheus.MustNewConstMetric(n.stateDesc, prometheus.GaugeValue, port.state, stdLabelValues...)
 		ch <- prometheus.MustNewConstMetric(n.physicalStateDesc, prometheus.GaugeValue, port.physicalState, stdLabelValues...)
 		ch <- prometheus.MustNewConstMetric(n.moduleStateDesc, prometheus.GaugeValue, port.moduleState, stdLabelValues...)
@@ -550,14 +564,19 @@ func (n *NicModuleCollector) UpdateMetrics() {
 	pciAddress2PhysicalDeviceInfo := getPciAddress2PhysicalDevice()
 	hostname := getHostName()
 	systemserial := getSystemSerial()
+	slots := getSlots()
 
 	responses := make(chan runMlxlinkResponse)
 	for _, device := range devices {
 		physicalDeviceInfo := pciAddress2PhysicalDeviceInfo[device.pciAddress]
 		device.caName = physicalDeviceInfo.caName
 		device.netDev = physicalDeviceInfo.netDev
-		slot := n.getSlot(device)
-		go n.runMlxlink(hostname, systemserial, slot, device, responses)
+		slot := slots.getSlot(device.pciAddress)
+		var port string
+		if function, ok := getFunction(device.pciAddress); ok {
+			port = strconv.Itoa(function + 1)
+		}
+		go n.runMlxlink(hostname, systemserial, slot, port, device, responses)
 	}
 	metrics := make([]PortMetrics, len(devices))
 	metricsIdx := 0
@@ -571,12 +590,15 @@ func (n *NicModuleCollector) UpdateMetrics() {
 	n.cacheMetrics(metrics)
 }
 
-func (n *NicModuleCollector) getSlot(device DeviceInfo) string {
-	slot := n.matchMellanoxSlot(device.pciAddress)
-	if !utf8.ValidString(slot) {
-		slot = "unknown"
+func getFunction(s string) (int, bool) {
+	parts := strings.Split(s, ".")
+	if len(parts) > 0 {
+		functionStr := parts[len(parts)-1]
+		if function, err := strconv.Atoi(functionStr); err == nil {
+			return function, true
+		}
 	}
-	return slot
+	return 0, false
 }
 
 func getSystemSerial() string {
@@ -651,8 +673,9 @@ func discoverMellanoxDevices() ([]DeviceInfo, error) {
 	return mellanoxDevices, nil
 }
 
+
 func (n *NicModuleCollector) runMlxlink(hostname string, systemserial string, slot string, device DeviceInfo, resp chan runMlxlinkResponse) {
-	cmd := exec.Command("mlxlink", "-json", "-d", device.pciAddress, "-m", "-c", "--rx_fec_histogram", "--show_histogram")
+	cmd := exec.Command("mlxlink", "-json", "-d", device.pciAddress, "-m", "-c", "--rx_fec_histogram", "--show_histogram") // #nosec G204
 	output, err := cmd.CombinedOutput()
 	mlxout := gjson.Parse(string(output))
 	valid_output := false
@@ -669,7 +692,7 @@ func (n *NicModuleCollector) runMlxlink(hostname string, systemserial string, sl
 	}
 
 	if valid_output {
-		metrics := parseOutput(mlxout, hostname, systemserial, slot, device)
+		metrics := parseOutput(mlxout, hostname, systemserial, slot, port device)
 		resp <- runMlxlinkResponse{metrics, false}
 	} else {
 		resp <- runMlxlinkResponse{PortMetrics{}, true}
@@ -697,14 +720,21 @@ func getNetDevice2IbDevice() map[string]string {
 	return result
 
 }
-func (n *NicModuleCollector) UpdateSlotInfo() {
+
+func getSlots() Slots {
 	cmd := exec.Command("dmidecode", "-t", "slot")
 	output, err := cmd.Output()
 	if err != nil {
 		log.Errorf("Error executing dmidecode: %s", err)
-		return
+		return Slots{}
 	}
-	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	return parseSlots(string(output))
+
+}
+
+func parseSlots(output string) Slots {
+	result := Slots{}
+	scanner := bufio.NewScanner(strings.NewReader(output))
 	var slot SlotInfo
 	designationPattern := regexp.MustCompile(`Designation:\s+(.+)`)
 	busAddressPattern := regexp.MustCompile(`Bus Address:\s+(.+)`)
@@ -716,7 +746,7 @@ func (n *NicModuleCollector) UpdateSlotInfo() {
 		if strings.Contains(line, "System Slot Information") {
 			// When new slot info starts, append the previous slot if valid
 			if slot.Designation != "" {
-				n.CachedSlots = append(n.CachedSlots, slot)
+				result = append(result, slot)
 			}
 			slot = SlotInfo{} // Reset for new slot info
 		}
@@ -725,8 +755,8 @@ func (n *NicModuleCollector) UpdateSlotInfo() {
 		if match := designationPattern.FindStringSubmatch(line); match != nil {
 			slot.Designation = match[1]
 			// Extract the slot number from the designation
-			if slotNumMatch := slotNumberPattern.FindStringSubmatch(slot.Designation); len(slotNumMatch) > 0 {
-				fmt.Sscanf(slotNumMatch[0], "%s", &slot.SlotNumber) // Convert string to int
+			if slotNumMatch := slotNumberPattern.FindStringSubmatch(slot.Designation); slotNumMatch != nil {
+				slot.SlotNumber = slotNumMatch[0]
 			}
 		}
 
@@ -738,35 +768,10 @@ func (n *NicModuleCollector) UpdateSlotInfo() {
 
 	// Append the last slot if valid
 	if slot.Designation != "" {
-		n.CachedSlots = append(n.CachedSlots, slot)
+		result = append(result, slot)
 	}
 
-}
-
-func (n *NicModuleCollector) findSlotByBusAddress(busAddress string) (SlotInfo, bool) {
-	for _, slot := range n.CachedSlots {
-		if slot.BusAddress == busAddress {
-			return slot, true
-		}
-	}
-	return SlotInfo{}, false
-}
-
-func (n *NicModuleCollector) matchMellanoxSlot(mellanoxPciAddress string) string {
-	pciAsArray := strings.Split(mellanoxPciAddress, ".")
-	slotAddress := mellanoxPciAddress
-	if pciAsArray[len(pciAsArray)-1] == "1" {
-		log.Debugf("Found port for %s is 1, changing to 0\n", mellanoxPciAddress)
-		pciAsArray[len(pciAsArray)-1] = "0"
-		slotAddress = strings.Join(pciAsArray, ".")
-	}
-
-	// Find the matching slot
-	if slot, found := n.findSlotByBusAddress(slotAddress); found {
-		log.Debugf("Found slot for address %s: %s\n", mellanoxPciAddress, slot.SlotNumber)
-		return slot.SlotNumber
-	}
-	return ""
+	return result
 }
 
 // Get a map of device to pci address from /sys/class/{className}/{device}/device links
@@ -853,7 +858,7 @@ func lookupKey(lookupMap map[string]string, lookupValue string) (string, bool) {
 }
 
 // Parse mlxlink data and set metrics
-func parseOutput(mlxout gjson.Result, hostname string, systemserial string, slot string, device DeviceInfo) PortMetrics {
+func parseOutput(mlxout gjson.Result, hostname, systemserial, slot, port string, device DeviceInfo) PortMetrics {
 	var metrics PortMetrics
 
 	metrics.mode = device.mode
@@ -862,6 +867,7 @@ func parseOutput(mlxout gjson.Result, hostname string, systemserial string, slot
 	metrics.hostname = hostname
 	metrics.systemserial = systemserial
 	metrics.slot = slot
+	metrics.port = port
 
 	valuesRegex := regexp.MustCompile(`([\d\.,\-]+)`)
 	speedsRegex := regexp.MustCompile(`Attenuation \((.*)\) \[dB\]`)
