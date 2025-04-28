@@ -45,6 +45,7 @@ type DeviceInfo struct {
 	mode       string
 	caName     string
 	netDev     string
+	pkey       string
 }
 
 type PortMetrics struct {
@@ -58,6 +59,7 @@ type PortMetrics struct {
 	partNumber   string
 	slot         string
 	port         string
+	pkey         string
 
 	state            float64
 	physicalState    float64
@@ -91,6 +93,7 @@ type NicModuleCollector struct {
 	cachedMetricsReads  chan readCachedMetricsRequest
 	cachedMetricsWrites chan []PortMetrics
 
+	netInfoDesc          *prometheus.Desc
 	stateDesc            *prometheus.Desc
 	physicalStateDesc    *prometheus.Desc
 	moduleStateDesc      *prometheus.Desc
@@ -255,6 +258,13 @@ func NewNicModuleCollector(namespace string) *NicModuleCollector {
 	collector := &NicModuleCollector{
 		cachedMetricsReads:  make(chan readCachedMetricsRequest),
 		cachedMetricsWrites: make(chan []PortMetrics),
+
+		netInfoDesc: prometheus.NewDesc(
+			namespace+"_network_info",
+			"Non-numeric data from /sys/class/net/<iface>, value is always 1.",
+			[]string{"netdev", "pkey"},
+			nil,
+		),
 
 		stateDesc: prometheus.NewDesc(
 			namespace+"_state",
@@ -443,6 +453,7 @@ func NewNicModuleCollector(namespace string) *NicModuleCollector {
 }
 
 func (n *NicModuleCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- n.netInfoDesc
 	ch <- n.stateDesc
 	ch <- n.physicalStateDesc
 	ch <- n.moduleStateDesc
@@ -474,6 +485,9 @@ func (n *NicModuleCollector) Describe(ch chan<- *prometheus.Desc) {
 func (n *NicModuleCollector) Collect(ch chan<- prometheus.Metric) {
 	cachedMetrics := n.getCachedMetrics()
 	for _, port := range cachedMetrics {
+		if port.netdev != "" {
+			ch <- prometheus.MustNewConstMetric(n.netInfoDesc, prometheus.GaugeValue, 1, port.netdev, port.pkey)
+		}
 		stdLabelValues := []string{port.mode, port.caname, port.netdev, port.serial, port.hostname, port.systemserial, port.vendor, port.partNumber, port.slot, port.port}
 		ch <- prometheus.MustNewConstMetric(n.stateDesc, prometheus.GaugeValue, port.state, stdLabelValues...)
 		ch <- prometheus.MustNewConstMetric(n.physicalStateDesc, prometheus.GaugeValue, port.physicalState, stdLabelValues...)
@@ -561,7 +575,7 @@ func (n *NicModuleCollector) manageCachedMetricsAccess() {
 
 func (n *NicModuleCollector) UpdateMetrics() {
 	devices, _ := discoverMellanoxDevices()
-	pciAddress2PhysicalDeviceInfo := getPciAddress2PhysicalDevice()
+	pciAddress2PhysicalDeviceInfo := getPciAddress2DeviceInfo()
 	hostname := getHostName()
 	systemserial := getSystemSerial()
 	slots := getSlots()
@@ -571,6 +585,7 @@ func (n *NicModuleCollector) UpdateMetrics() {
 		physicalDeviceInfo := pciAddress2PhysicalDeviceInfo[device.pciAddress]
 		device.caName = physicalDeviceInfo.caName
 		device.netDev = physicalDeviceInfo.netDev
+		device.pkey = physicalDeviceInfo.pkey
 		slot := slots.getSlot(device.pciAddress)
 		var port string
 		if function, ok := getFunction(device.pciAddress); ok {
@@ -673,7 +688,7 @@ func discoverMellanoxDevices() ([]DeviceInfo, error) {
 	return mellanoxDevices, nil
 }
 
-func (n *NicModuleCollector) runMlxlink(hostname string, systemserial string, slot string, port string, device DeviceInfo, resp chan runMlxlinkResponse) {
+func (n *NicModuleCollector) runMlxlink(hostname, systemserial, slot, port string, device DeviceInfo, resp chan runMlxlinkResponse) {
 	cmd := exec.Command("mlxlink", "-json", "-d", device.pciAddress, "-m", "-c", "--rx_fec_histogram", "--show_histogram") // #nosec G204
 	output, err := cmd.CombinedOutput()
 	mlxout := gjson.Parse(string(output))
@@ -686,8 +701,9 @@ func (n *NicModuleCollector) runMlxlink(hostname string, systemserial string, sl
 		status_message := mlxout.Get("status.message").String()
 		if strings.Contains(status_message, "FEC Histogram is valid with active link operation only") {
 			valid_output = true
+		} else {
+			log.Errorf("Error running mlxlink -d %s: %s\n", device.pciAddress, err)
 		}
-		log.Errorf("Error running mlxlink -d %s: %s\n", device.pciAddress, err)
 	}
 
 	if valid_output {
@@ -810,7 +826,7 @@ func getDevice2PciAddress(className string) map[string]string {
 }
 
 // Get a map of pci address to physical device
-func getPciAddress2PhysicalDevice() map[string]DeviceInfo {
+func getPciAddress2DeviceInfo() map[string]DeviceInfo {
 	result := make(map[string]DeviceInfo)
 	// get map of pci address to infiniband device from /sys/class/infinband/device links
 	ibDevice2PciAddress := getDevice2PciAddress("infiniband")
@@ -839,12 +855,23 @@ func getPciAddress2PhysicalDevice() map[string]DeviceInfo {
 			deviceInfo.pciAddress = ibAddress
 			deviceInfo.caName = ibDevice
 			deviceInfo.netDev, _ = lookupKey(netDevice2PciAddress, ibAddress)
+			deviceInfo.pkey, _ = getPkey(deviceInfo.netDev)
 			result[ibAddress] = deviceInfo
 		}
 
 	}
 
 	return result
+}
+
+func getPkey(ibDevice string) (string, bool) {
+	pkeyFilePath := filepath.Join("/sys/class/net", ibDevice, "pkey")
+	pkeyFileContent, err := os.ReadFile(pkeyFilePath)
+	if err != nil {
+		log.Debugf("Error reading pkey for %s: %s", ibDevice, err)
+		return "", false
+	}
+	return strings.TrimSpace(string(pkeyFileContent)), true
 }
 
 func lookupKey(lookupMap map[string]string, lookupValue string) (string, bool) {
@@ -863,6 +890,7 @@ func parseOutput(mlxout gjson.Result, hostname, systemserial, slot, port string,
 	metrics.mode = device.mode
 	metrics.caname = device.caName
 	metrics.netdev = device.netDev
+	metrics.pkey = device.pkey
 	metrics.hostname = hostname
 	metrics.systemserial = systemserial
 	metrics.slot = slot
