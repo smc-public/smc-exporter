@@ -593,13 +593,11 @@ func (n *NicModuleCollector) UpdateMetrics() {
 		}
 		go n.runMlxlink(hostname, systemserial, slot, port, device, responses)
 	}
-	metrics := make([]PortMetrics, len(devices))
-	metricsIdx := 0
+	metrics := make([]PortMetrics, 0, len(devices))
 	for i := 0; i < len(devices); i++ {
 		response := <-responses
 		if !response.error {
-			metrics[metricsIdx] = response.result
-			metricsIdx++
+			metrics = append(metrics, response.result)
 		}
 	}
 	n.cacheMetrics(metrics)
@@ -699,10 +697,11 @@ func (n *NicModuleCollector) runMlxlink(hostname, systemserial, slot, port strin
 		// Check and see if there was an error relating to the FEC histogram param - if there is, we can still provide all
 		//  of the other metrics
 		status_message := mlxout.Get("status.message").String()
-		if strings.Contains(status_message, "FEC Histogram is valid with active link operation only") {
+		if strings.Contains(status_message, "FEC Histogram is valid with active link operation only") ||
+			strings.Contains(status_message, "FEC Histogram is not supported for the current device") {
 			valid_output = true
 		} else {
-			log.Errorf("Error running mlxlink -d %s: %s\n", device.pciAddress, err)
+			log.Errorf("Error running mlxlink -d %s: %s\n", device.pciAddress, status_message)
 		}
 	}
 
