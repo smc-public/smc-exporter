@@ -687,7 +687,7 @@ func discoverMellanoxDevices() ([]DeviceInfo, error) {
 }
 
 func (n *NicModuleCollector) runMlxlink(hostname, systemserial, slot, port string, device DeviceInfo, resp chan runMlxlinkResponse) {
-	cmd := exec.Command("mlxlink", "-json", "-d", device.pciAddress, "-m", "-c", "--rx_fec_histogram", "--show_histogram") // #nosec G204
+	cmd := exec.Command("mlxlink", "-d", device.pciAddress, "-json", "-m", "-c", "--rx_fec_histogram", "--show_histogram") // #nosec G204
 	output, err := cmd.CombinedOutput()
 	mlxout := gjson.Parse(string(output))
 	valid_output := false
