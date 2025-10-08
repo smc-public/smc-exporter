@@ -39,9 +39,15 @@ func main() {
 	var port string
 	var interval int
 	var showVersion bool
+	var TLSEnabled bool
+	var crtfile string
+	var keyfile string
 	flag.StringVar(&port, "port", "2112", "Port to expose metrics on")
 	flag.IntVar(&interval, "interval", 10, "Interval used to update metrics")
 	flag.BoolVar(&showVersion, "version", false, "Show application version")
+	flag.BoolVar(&TLSEnabled, "TLSEnabled", false, "Enable TLS")
+	flag.StringVar(&crtfile, "crtfile", "/etc/smc-exporter/tls.crt", "Define Crt file location")
+	flag.StringVar(&keyfile, "keyfile", "/etc/smc-exporter/tls.key", "Define Key file location")
 	logLevel := flag.String("loglevel", "info", "Set the log level: trace, debug, info, warn, error, fatal, panic")
 	flag.Parse()
 
@@ -72,7 +78,11 @@ func main() {
 	router.GET("/metrics", sh)
 	log.Println("Starting smc-exporter on port "+port, "version", version.Info())
 	log.Info("Build context", "build_context", version.BuildContext())
-	if err := router.Run(":" + port); err != nil {
+	if TLSEnabled {
+		if err := router.RunTLS(":" + port, crtfile, keyfile); err!= nil {
+			log.Errorf("Error starting server: %v\n", err)
+		}
+	} else if err := router.Run(":" + port); err != nil {
 		log.Errorf("Error starting server: %v\n", err)
 	}
 }
