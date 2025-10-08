@@ -79,7 +79,7 @@ func main() {
 	log.Println("Starting smc-exporter on port "+port, "version", version.Info())
 	log.Info("Build context", "build_context", version.BuildContext())
 	if TLSEnabled {
-		if err := router.RunTLS(":" + port, crtfile, keyfile); err!= nil {
+		if err := router.RunTLS(":"+port, crtfile, keyfile); err != nil {
 			log.Errorf("Error starting server: %v\n", err)
 		}
 	} else if err := router.Run(":" + port); err != nil {
