@@ -65,15 +65,27 @@ func main() {
 	router := gin.Default()
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(versioncollector.NewCollector("smc_exporter"))
-	se := NewSmcExporter()
+
+	// NIC Module Collector
+	nm := sprom.NewNicModuleCollector(PREFIX + "_nic_module")
 	// Start collection loop (prometheus scrape is async)
 	go func() {
 		for {
-			se.NicModule.UpdateMetrics()
+			nm.UpdateMetrics()
 			time.Sleep(time.Duration(interval) * time.Second)
 		}
 	}()
-	reg.MustRegister(se)
+	reg.MustRegister(nm)
+
+	// PCI Device Collector
+	pd, err := sprom.NewPCIDeviceCollector(PREFIX)
+	if err != nil {
+		log.Errorf("Error creating PCIDeviceCollector: %s", err)
+	} else if err = reg.Register(pd); err != nil {
+		log.Errorf("Error registering PCIDeviceCollector: %s", err)
+	}
+
+	// Expose /metrics endpoint
 	sh := SmcPrometheusHandler(reg)
 	router.GET("/metrics", sh)
 	log.Println("Starting smc-exporter on port "+port, "version", version.Info())
@@ -96,23 +108,4 @@ func SmcPrometheusHandler(reg prometheus.Gatherer) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		h.ServeHTTP(c.Writer, c.Request)
 	}
-}
-
-// Overarching exporter with sub collectors
-type SmcExporter struct {
-	NicModule *sprom.NicModuleCollector
-}
-
-func NewSmcExporter() *SmcExporter {
-	return &SmcExporter{
-		NicModule: sprom.NewNicModuleCollector(PREFIX + "_nic_module"),
-	}
-}
-
-func (s *SmcExporter) Collect(ch chan<- prometheus.Metric) {
-	s.NicModule.Collect(ch)
-}
-
-func (s *SmcExporter) Describe(ch chan<- *prometheus.Desc) {
-	s.NicModule.Describe(ch)
 }
