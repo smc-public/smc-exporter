@@ -792,7 +792,6 @@ func parseSlots(output string) Slots {
 func getDevice2PciAddress(className string) map[string]string {
 	result := make(map[string]string)
 	basePath := filepath.Join("/sys/class", className)
-	log.Info("Here")
 	files, err := os.ReadDir(basePath)
 	if err != nil {
 		log.Errorf("Error listing %s devices: %s\n", className, err)
@@ -829,9 +828,7 @@ func getPciAddress2DeviceInfo() map[string]DeviceInfo {
 	result := make(map[string]DeviceInfo)
 	path := "/sys/class/infiniband"
 	if info, err := os.Stat(path); err == nil {
-		log.Info("File exists")
 		if info.IsDir() {
-			log.Info("Is directory")
 			// get map of pci address to infiniband device from /sys/class/infinband/device links
 			ibDevice2PciAddress := getDevice2PciAddress("infiniband")
 			// get map of pci address to network device from /sys/class/net/device links
@@ -863,8 +860,6 @@ func getPciAddress2DeviceInfo() map[string]DeviceInfo {
 					result[ibAddress] = deviceInfo
 				}
 			}
-		} else {
-			log.Info("/sys/class/infiniband does not exist")
 		}
 	}
 
