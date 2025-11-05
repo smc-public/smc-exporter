@@ -792,7 +792,6 @@ func parseSlots(output string) Slots {
 func getDevice2PciAddress(className string) map[string]string {
 	result := make(map[string]string)
 	basePath := filepath.Join("/sys/class", className)
-
 	files, err := os.ReadDir(basePath)
 	if err != nil {
 		log.Errorf("Error listing %s devices: %s\n", className, err)
@@ -827,37 +826,41 @@ func getDevice2PciAddress(className string) map[string]string {
 // Get a map of pci address to physical device
 func getPciAddress2DeviceInfo() map[string]DeviceInfo {
 	result := make(map[string]DeviceInfo)
-	// get map of pci address to infiniband device from /sys/class/infinband/device links
-	ibDevice2PciAddress := getDevice2PciAddress("infiniband")
-	// get map of pci address to network device from /sys/class/net/device links
-	netDevice2PciAddress := getDevice2PciAddress("net")
-	// get map of bonded ib device to slaves
-	bondedIbDevice2Slaves := getBondedIbDevice2Slaves()
+	path := "/sys/class/infiniband"
+	if info, err := os.Stat(path); err == nil {
+		if info.IsDir() {
+			// get map of pci address to infiniband device from /sys/class/infinband/device links
+			ibDevice2PciAddress := getDevice2PciAddress("infiniband")
+			// get map of pci address to network device from /sys/class/net/device links
+			netDevice2PciAddress := getDevice2PciAddress("net")
+			// get map of bonded ib device to slaves
+			bondedIbDevice2Slaves := getBondedIbDevice2Slaves()
 
-	for ibDevice, ibAddress := range ibDevice2PciAddress {
-		if slaves, exists := bondedIbDevice2Slaves[ibDevice]; exists {
-			// Add slave devices
-			for _, slave := range slaves {
-				if slaveAddress, exists := netDevice2PciAddress[slave]; exists {
-					deviceInfo := DeviceInfo{}
-					deviceInfo.pciAddress = slaveAddress
-					deviceInfo.caName = ibDevice
-					deviceInfo.netDev, _ = lookupKey(netDevice2PciAddress, slaveAddress)
-					result[slaveAddress] = deviceInfo
+			for ibDevice, ibAddress := range ibDevice2PciAddress {
+				if slaves, exists := bondedIbDevice2Slaves[ibDevice]; exists {
+					// Add slave devices
+					for _, slave := range slaves {
+						if slaveAddress, exists := netDevice2PciAddress[slave]; exists {
+							deviceInfo := DeviceInfo{}
+							deviceInfo.pciAddress = slaveAddress
+							deviceInfo.caName = ibDevice
+							deviceInfo.netDev, _ = lookupKey(netDevice2PciAddress, slaveAddress)
+							result[slaveAddress] = deviceInfo
+						} else {
+							log.Errorf("No PCI Address found for: %s\n", slave)
+						}
+					}
 				} else {
-					log.Errorf("No PCI Address found for: %s\n", slave)
+					// Add ib device
+					deviceInfo := DeviceInfo{}
+					deviceInfo.pciAddress = ibAddress
+					deviceInfo.caName = ibDevice
+					deviceInfo.netDev, _ = lookupKey(netDevice2PciAddress, ibAddress)
+					deviceInfo.pkey, _ = getPkey(deviceInfo.netDev)
+					result[ibAddress] = deviceInfo
 				}
 			}
-		} else {
-			// Add ib device
-			deviceInfo := DeviceInfo{}
-			deviceInfo.pciAddress = ibAddress
-			deviceInfo.caName = ibDevice
-			deviceInfo.netDev, _ = lookupKey(netDevice2PciAddress, ibAddress)
-			deviceInfo.pkey, _ = getPkey(deviceInfo.netDev)
-			result[ibAddress] = deviceInfo
 		}
-
 	}
 
 	return result
