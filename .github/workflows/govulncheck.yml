@@ -1,0 +1,30 @@
+---
+name: Go Vulnerability Check
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  govulncheck:
+    permissions:
+      contents: read  # for actions/checkout to fetch code
+      pull-requests: read  # for govulnchgolang/govulncheck-action@v1 to fetch pull requests
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install Go
+        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5.4.0
+        with:
+          go-version: 1.24.x
+      - name: Check Vulnerabilities
+        uses: golang/govulncheck-action@v1
+        with:
+          go-version-input: 1.24.x 
