@@ -7,7 +7,7 @@ else
 fi
 
 
-PLATFORMS=("linux/amd64")
+PLATFORMS=("linux/amd64" "linux/arm64")
 
 BUILD_DATE=$(date --iso-8601=m --utc)
 GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2> /dev/null)
