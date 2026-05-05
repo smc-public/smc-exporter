@@ -131,6 +131,7 @@ type runMlxlinkResponse struct {
 	error  bool
 }
 
+// values of PHY state of both Ethernet and Infiniband
 var stateValues = map[string]float64{
 	"Disable":         0,
 	"Port PLL Down":   1,
@@ -191,15 +192,19 @@ var speed2bps = map[string]float64{
 	"10M":  10000000,
 }
 
+// values of auto negotiation state for both Infiniband and Ethernet
 var physicalStateValues = map[string]float64{
-	"Disabled":                   0,
-	"Initializing":               1,
-	"Recover Config":             2,
-	"Config Test":                3,
-	"Wait Remote Test":           4,
-	"Wait Config Enhanced":       5,
-	"Config Idle":                6,
-	"LinkUp":                     7,
+	// Infiniband physical state, IB_AN_FSM_*
+	"N/A":                  0,
+	"Initializing":         1,
+	"Recover Config":       2,
+	"Config Test":          3,
+	"Wait Remote Test":     4,
+	"Wait Config Enhanced": 5,
+	"Config Idle":          6,
+	// Common physical state for both Infiniband and Ethernet
+	"LinkUp": 7,
+	// Ethernet physical state, ETH_AN_FSM_*
 	"ETH_AN_FSM_ENABLE":          10,
 	"ETH_AN_FSM_XMIT_DISABLE":    11,
 	"ETH_AN_FSM_ABILITY_DETECT":  12,

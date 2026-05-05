@@ -1,8 +1,8 @@
 module smc-exporter
 
-go 1.24.0
+go 1.25.0
 
-toolchain go1.24.9
+toolchain go1.25.9
 
 require (
 	github.com/gin-gonic/gin v1.10.0

@@ -23,9 +23,9 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5.4.0
         with:
-          go-version: 1.24.x
+          go-version: 1.25.x
       - name: Lint
         uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
         with:
           args: --verbose
-          version: v2.0.2
+          version: v2.4.0
